@@ -1,0 +1,57 @@
+[project]
+name = "fetchdata"
+version = "0.1.0"
+description = "fetch crypto data"
+readme = "README.md"
+authors = [
+    { name = "zt", email = "731315163@qq.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "ccxt>=4.4.82",
+    "communication",
+    "orjson>=3.10.18",
+    "polars>=1.30.0",
+]
+
+[project.optional-dependencies]
+
+dev = [
+  "pre-commit",
+  "pytest-asyncio",
+  "pytest-cov",
+  "pytest-mock",
+  "pytest-random-order",
+  "pytest-timeout",
+  "pytest-xdist",
+  "pytest",
+  "ruff",
+  "time-machine",
+  "types-cachetools",
+  "types-filelock",
+  "types-python-dateutil",
+  "types-requests",
+  "types-tabulate",
+]
+
+
+
+
+
+[project.scripts]
+fetchdata = "fetchdata:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+[tool.hatch.build]
+exclude = [
+  "/.*",
+  "/docs",
+  "/tests",
+  "/.gitignore",
+  "/MANIFEST.in"
+]
+
+[tool.uv.sources]
+communication = { path = "../communication/dist/communication-0.1.0.tar.gz" }
