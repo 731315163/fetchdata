@@ -1,10 +1,18 @@
+from collections.abc import Awaitable, Callable
 import logging
+from typing import Any, Iterable
+
+from typenums import DataType, State
 from .exchange_factory import ExchangeFactory
 from .protocol import ExchangeProtocol
-from cache import CacheManager,CacheProtocol 
+from data import CacheFactory, DataKey,DataRecoder
 import asyncio
 from datetime import datetime,timedelta,timezone,time
 import polars as pl
+from typenums.Literal import TimeFrame
+import ccxt
+from exceptions import *
+from util import timeframe_to_msecs
 logger = logging.getLogger(__name__)
 class Exchange:
 
@@ -12,22 +20,30 @@ class Exchange:
         self.lock = asyncio.Lock()
         self.exchange_name = exchange_name
         self.exchange: ExchangeProtocol = ExchangeFactory.get_exchange(exchange_name, config=config)
-        self.last_trades_sendtime = {}
-        self.last_ohlcv_sendtime = {}
-        self.last_orderbook_sendtime = {}
-        self.datacache = CacheManager.get (self.exchange_name)
+        self.windows = {str,timedelta}
+        self.since:dict[tuple,int] = {}
+        self.until:dict[tuple,int] = {}
+        self.cache = CacheFactory.get(exchange_id=self.exchange_name)
+        self.data_internal_ratio = 60
+        # self._trades_pagination= self.exchange.has["pagination"]
 
 
     def get_active_symbols(self):
         if self.exchange.symbols is not None:
             return [symbol for symbol in self.exchange.symbols if self. is_active_symbol( symbol)]
         return []
+    def set_since(self,key:DataKey,since:int):
+        if key not in self.since or(key in self.since and since < self.since[key]):
+            self.since[key] = since
+    def set_until(self,key:DataKey,until:int):
+        if key not in self.until or(key in self.until and until > self.until[key]):
+            self.until[key] = until
 
     def is_active_symbol(self, symbol):
         if self.exchange.markets is None:
            return False
         return ('.' not in symbol) and (('active' not in self.exchange.markets[symbol]) or (self.exchange.markets[symbol]['active']))
-    async def tickers(self, *symbols):
+    async def un_tickers(self, symbol:str,until:int|None = None):
         length  = len(symbols)
         if length > 1:
             result = await self.exchange.watch_tickers(list(symbols))
@@ -36,298 +52,151 @@ class Exchange:
         elif length <1:
             logger.log(logging.ERROR, "No symbols provided")
     
-    async def trades(self, *symbols):
+    async def un_trades(self, *symbols):
        result= await self.exchange.watch_trades_for_symbols(symbols=list(symbols))
-    async def ohlcv(self, *symbols):
+    async def un_ohlcv(self, timeframe:TimeFrame, *symbols):
         symbols = list(symbols)
+        
         if len(symbols) == 1:
             return self.exchange.fetch_ohlcv(symbols[0], '1d')
-    async def orderbook(self, *symbols):
+    async def un_orderbook(self, *symbols):
         length = len(symbols)
         symbols = list(symbols)
         if length == 1:
             return self.exchange.watch_order_book(symbols[0])
         elif length > 1:
             return self.exchange.watch_orders(symbols)
+    async def tickers(self, symbol:str,markettype):
+        key = DataKey(symbol,timeframe= "",marketType=markettype,datatype="trades")
+        datacache= self.cache.get_recoder(key=key)
+        length  = len(symbols)
+        if length > 1:
+            result = await self.exchange.watch_tickers(list(symbols))
+        elif length == 1:
+            reust = await self.exchange.watch_ticker(symbols[0])
+        elif length <1:
+            logger.error( "No symbols provided")
+    
+    async def trades(self,symbol:str, since:int,until = -1,limit =None,params={} ):
         
-    # async def fetch_ticker(self, *symbols):
-    #     if len(symbols) == 1:
-
-    #     ticker = await self.exchange.fetchTicker(symbol)
-    #     print(self.exchange.id, symbol, ticker)
-    #     return ticker
-
-
-    # async def fetch_tickers(self):
-    #     await self.exchange.load_markets()
-    #     symbols_to_load = get_active_symbols(self.exchange)
-    #     input_coroutines = [fetch_ticker(self.exchange, symbol) for symbol in symbols_to_load]
-    #     tickers = await asyncio.gather(*input_coroutines, return_exceptions=True)
-    #     for ticker, symbol in zip(tickers, symbols_to_load):
-    #         if not isinstance(ticker, dict):
-    #             print(self.exchange.id, symbol, 'error')
-    #         else:
-    #             print(self.exchange.id, symbol, 'ok')
-    #     print(self.exchange.id, 'fetched', len(list(tickers)), 'tickers')
-    async def update_tickers_cache(self):
-        """更新交易对行情缓存"""
-        async with self.lock:
+       result= await self.exchange.watch_trades_for_symbols(symbols=list(symbols),since=since,limit=limit,params=params)
+       return result
+    async def ohlcv(self,symbol:str,timeframe: str,since=None,limit =None,params={}):
+        if length == 1:
+            pair , timeframe = symbols[0]
+            return await self.exchange.watch_ohlcv(symbol=pair, timeframe=timeframe)
+        elif length > 1:
+            return  await self.exchange.watch_ohlcv_for_symbols(symbolsAndTimeframes=symbols,since=since,limit=limit,params=params)
+    async def orderbook(self, symbols:list):
+       
+            return self.exchange.watch_order_book_for_symbols(symbols)
+       
+    
+    async def update(self) -> None:
+        """后台任务，持续更新最新的交易数据"""
+        while True:
             try:
-                tickers = await self.exchange.fetch_tickers()
-                # 将字典转换为Polars DataFrame
-                data = []
-                for symbol, ticker in tickers.items():
-                    data.append({
-                        'symbol': symbol,
-                        'timestamp': ticker.get('timestamp', int(time.time() * 1000)),
-                        'datetime': ticker.get('datetime', datetime.now().isoformat()),
-                        'high': ticker.get('high'),
-                        'low': ticker.get('low'),
-                        'bid': ticker.get('bid'),
-                        'ask': ticker.get('ask'),
-                        'last': ticker.get('last'),
-                        'baseVolume': ticker.get('baseVolume'),
-                        'quoteVolume': ticker.get('quoteVolume')
-                    })
-                
-                self.tickers_cache = pl.DataFrame(data)
-                self.last_updated['tickers'] = datetime.now()
-                print(f"Ticker cache updated with {len(data)} symbols")
+                if not self.fetching_newest:
+                    self.fetching_newest = True
+                    await self._update_newest_data()
+                    self.fetching_newest = False
             except Exception as e:
-                print(f"Error updating tickers cache: {e}")
+                logger.error(f"Background update error: {e}")
+                await asyncio.sleep(5)  # 发生错误时等待更长时间
     
-    async def update_ohlcv_cache(self, symbol, timeframe):
-        """更新K线数据缓存"""
-        async with self.lock:
-            try:
-                ohlcv = await self.exchange.fetch_ohlcv(symbol, timeframe)
-                key = f"{symbol}_{timeframe}"
+    async def _update_newest_data(self) -> None:
+        """获取最新的交易数据并更新缓存"""
+        if not self.cache:
+            return  
+        for key,df in self.cache.items():
+            pair,timeframe,marketType,datatype = key
+            if df.state == State.RUNNING or df.state == State.PAUSED:
+                since = self.cache.get_recoder(key=key)
+                taks = asyncio.create_task(self.exchange.watch_trades(symbol=pair,since = df.first_datetime )) 
                 
-                # 转换OHLCV数据为DataFrame
-                columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume']
-                df = pl.DataFrame(ohlcv, columns=columns)
-                df = df.with_columns(
-                    pl.from_epoch("timestamp", time_unit="ms").alias("datetime")
-                )
-                
-                self.ohlcv_cache[key] = df
-                self.last_updated[key] = datetime.now()
-                print(f"OHLCV cache updated for {symbol} {timeframe}: {len(df)} bars")
-            except Exception as e:
-                print(f"Error updating OHLCV cache for {symbol} {timeframe}: {e}")
+        try:
+            trades = await self.exchange.watch_trades(self.symbol, latest_timestamp)
+            new_trades = [t for t in trades if t['timestamp'] > latest_timestamp]
+            if new_trades:
+                async with self.lock:
+                    self._update_cache(new_trades)
+        except Exception as e:
+            print(f"Error fetching newest data: {e}")
     
-    async def update_order_book_cache(self, symbol, limit=100):
-        """更新订单簿缓存"""
-        async with self.lock:
-            try:
-                order_book = await self.exchange.fetch_order_book(symbol, limit)
-                self.orders_cache[symbol] = {
-                    'timestamp': order_book.get('timestamp', int(time.time() * 1000)),
-                    'datetime': order_book.get('datetime', datetime.now().isoformat()),
-                    'bids': order_book.get('bids', []),
-                    'asks': order_book.get('asks', [])
-                }
-                self.last_updated[f'orders_{symbol}'] = datetime.now()
-                print(f"Order book cache updated for {symbol}")
-            except Exception as e:
-                print(f"Error updating order book cache for {symbol}: {e}")
+    async def _update_old_data_for_cache(self,key:DataKey, since:int,fetch:Callable[[str, int], Awaitable[list[list]]]):
+        cache = self.cache.get_recoder(key=key)
+        last_datetime = cache.first_datetime-1
+        timeframe =  key.timeframe if key.timeframe.strip() != "" else "1s"
+        internal = timeframe_to_msecs(timeframe)*self.data_internal_ratio
+        chunck_since = max( last_datetime-internal,since)
+        cache_list = []
+        while chunck_since < last_datetime:
+            result = await fetch(key.pair, chunck_since)
+            cache_list.extend(result)
+            chunck_since = int( result[-1][0])
+
+        await self.cache.prepend(key, cache_list)
+
     
-    async def watch_tickers(self, interval_seconds=30):
-        """使用watch API异步监听行情更新"""
-        task_name = 'watch_tickers'
-        if task_name in self.tasks:
-            return  # 已经在运行
-        
-        async def _watch_tickers():
-            while True:
-                try:
-                    tickers = await self.exchange.watch_tickers()
-                    async with self.lock:
-                        # 处理接收到的行情数据
-                        data = []
-                        for symbol, ticker in tickers.items():
-                            data.append({
-                                'symbol': symbol,
-                                'timestamp': ticker.get('timestamp', int(time.time() * 1000)),
-                                'datetime': ticker.get('datetime', datetime.now().isoformat()),
-                                'high': ticker.get('high'),
-                                'low': ticker.get('low'),
-                                'bid': ticker.get('bid'),
-                                'ask': ticker.get('ask'),
-                                'last': ticker.get('last'),
-                                'baseVolume': ticker.get('baseVolume'),
-                                'quoteVolume': ticker.get('quoteVolume')
-                            })
-                        
-                        # 更新缓存
-                        if self.tickers_cache is not None:
-                            new_df = pl.DataFrame(data)
-                            # 合并新旧数据，保留最新的记录
-                            self.tickers_cache = (
-                                self.tickers_cache
-                                .join(new_df, on='symbol', how='outer', suffix='_new')
-                                .select([
-                                    pl.col('symbol'),
-                                    pl.col('timestamp_new').fill_null(pl.col('timestamp')).alias('timestamp'),
-                                    pl.col('datetime_new').fill_null(pl.col('datetime')).alias('datetime'),
-                                    pl.col('high_new').fill_null(pl.col('high')).alias('high'),
-                                    pl.col('low_new').fill_null(pl.col('low')).alias('low'),
-                                    pl.col('bid_new').fill_null(pl.col('bid')).alias('bid'),
-                                    pl.col('ask_new').fill_null(pl.col('ask')).alias('ask'),
-                                    pl.col('last_new').fill_null(pl.col('last')).alias('last'),
-                                    pl.col('baseVolume_new').fill_null(pl.col('baseVolume')).alias('baseVolume'),
-                                    pl.col('quoteVolume_new').fill_null(pl.col('quoteVolume')).alias('quoteVolume')
-                                ])
-                            )
-                        else:
-                            self.tickers_cache = pl.DataFrame(data)
-                        
-                        self.last_updated['tickers'] = datetime.now()
-                        print(f"Ticker cache updated via watch with {len(data)} symbols")
+    async def _update_old_data(self) -> None:
+        """
+        获取比当前缓存更早的交易数据
+
+        参数:
+            since: 开始时间戳(毫秒)
+        """
+        if not self.cache:
+            return  # 缓存为空时不执行
+        async with asyncio.taskgroups.TaskGroup() as tg:
+            for key in self.cache.keys():
+                if key not in self.since:
+                    continue
+                since = self.since.get(key)
+                recoder = self.cache.get_recoder(key=key)
+            
+                end_timestamp = recoder.first_datetime if recoder else None
+                if not since or not end_timestamp or since >= end_timestamp:
+                    continue  # 不需要获取更早的数据
+           
+                current_time = end_timestamp - 1
+                if current_time is not None and since is not None and current_time > since:
+
+                    try:
+                        # 使用fetch_trades获取历史数据
+                        trades =tg.create_task( self.exchange.fetch_trades(key.pair, since))
+                        result= await trades
+                        if not trades:
+                            break
+
+                        async with self.lock:
+                            # 只添加比当前缓存更早的数据
+                            older_trades = []
+                            # 确保 trades 是可迭代对象
+                            trades_list = []
+                            if isinstance(trades, list):
+                                trades_list = trades
+                            elif hasattr(trades, '__await__'):
+                                # 如果是协程，等待其完成
+                                trades_list = await trades
+                            elif isinstance(trades, Iterable):
+                                trades_list = list(trades)
+
+                            # 验证 timestamp 存在性
+                            if end_timestamp is not None:
+                                older_trades = [t for t in trades_list 
+                                        if isinstance(t, dict) and 'timestamp' in t 
+                                        and isinstance(t['timestamp'], (int, float)) 
+                                        and t['timestamp'] < end_timestamp]
+
+                        if older_trades:
+                            self._prepend_to_cache(older_trades)
+
+                    # 更新下一次请求的时间范围
+                    if trades_list:
+                        since = trades_list[-1]['timestamp']  # 使用获取到的最后一条数据的时间戳作为下次请求的起点
+                    time_delta = min(time_delta * 2, max_time_delta)  # 成功后增加时间间隔
                 except Exception as e:
-                    print(f"Error watching tickers: {e}")
-                    await asyncio.sleep(5)  # 出错后等待一段时间再重试
-        
-        self.tasks[task_name] = asyncio.create_task(_watch_tickers())
-    
-    async def watch_ohlcv(self, symbol, timeframe, interval_seconds=60):
-        """使用watch API异步监听K线数据更新"""
-        task_name = f'watch_ohlcv_{symbol}_{timeframe}'
-        if task_name in self.tasks:
-            return  # 已经在运行
-        
-        async def _watch_ohlcv():
-            while True:
-                try:
-                    ohlcv = await self.exchange.watch_ohlcv(symbol, timeframe)
-                    async with self.lock:
-                        key = f"{symbol}_{timeframe}"
-                        # 处理接收到的K线数据
-                        columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume']
-                        new_df = pl.DataFrame(ohlcv, columns=columns)
-                        new_df = new_df.with_columns(
-                            pl.from_epoch("timestamp", time_unit="ms").alias("datetime")
-                        )
-                        
-                        # 更新缓存
-                        if key in self.cache:
-                            # 合并新旧数据，保留最新的记录
-                            self.ohlcv_cache[key] = (
-                                self.ohlcv_cache[key]
-                                .join(new_df, on='timestamp', how='outer', suffix='_new')
-                                .select([
-                                    pl.col('timestamp'),
-                                    pl.col('datetime_new').fill_null(pl.col('datetime')).alias('datetime'),
-                                    pl.col('open_new').fill_null(pl.col('open')).alias('open'),
-                                    pl.col('high_new').fill_null(pl.col('high')).alias('high'),
-                                    pl.col('low_new').fill_null(pl.col('low')).alias('low'),
-                                    pl.col('close_new').fill_null(pl.col('close')).alias('close'),
-                                    pl.col('volume_new').fill_null(pl.col('volume')).alias('volume')
-                                ])
-                                .sort('timestamp')
-                            )
-                        else:
-                            self.ohlcv_cache[key] = new_df
-                        
-                        self.last_updated[key] = datetime.now()
-                        print(f"OHLCV cache updated via watch for {symbol} {timeframe}: {len(new_df)} bars")
-                except Exception as e:
-                    print(f"Error watching OHLCV for {symbol} {timeframe}: {e}")
-                    await asyncio.sleep(5)  # 出错后等待一段时间再重试
-        
-        self.tasks[task_name] = asyncio.create_task(_watch_ohlcv())
-    
-    async def watch_order_book(self, symbol, limit=100, interval_seconds=5):
-        """使用watch API异步监听订单簿更新"""
-        task_name = f'watch_order_book_{symbol}'
-        if task_name in self.tasks:
-            return  # 已经在运行
-        
-        async def _watch_order_book():
-            while True:
-                try:
-                    order_book = await self.exchange.watch_order_book(symbol, limit)
-                    async with self.lock:
-                        self.orders_cache[symbol] = {
-                            'timestamp': order_book.get('timestamp', int(time.time() * 1000)),
-                            'datetime': order_book.get('datetime', datetime.now().isoformat()),
-                            'bids': order_book.get('bids', []),
-                            'asks': order_book.get('asks', [])
-                        }
-                        self.last_updated[f'orders_{symbol}'] = datetime.now()
-                        print(f"Order book cache updated via watch for {symbol}")
-                except Exception as e:
-                    print(f"Error watching order book for {symbol}: {e}")
-                    await asyncio.sleep(5)  # 出错后等待一段时间再重试
-        
-        self.tasks[task_name] = asyncio.create_task(_watch_order_book())
-    
-    async def unwatch_tickers(self):
-        """停止监听行情更新"""
-        task_name = 'watch_tickers'
-        if task_name in self.tasks:
-            self.tasks[task_name].cancel()
-            del self.tasks[task_name]
-            print("Stopped watching tickers")
-    
-    async def unwatch_ohlcv(self, symbol, timeframe):
-        """停止监听K线数据更新"""
-        task_name = f'watch_ohlcv_{symbol}_{timeframe}'
-        if task_name in self.tasks:
-            self.tasks[task_name].cancel()
-            del self.tasks[task_name]
-            print(f"Stopped watching OHLCV for {symbol} {timeframe}")
-    
-    async def unwatch_order_book(self, symbol):
-        """停止监听订单簿更新"""
-        task_name = f'watch_order_book_{symbol}'
-        if task_name in self.tasks:
-            self.tasks[task_name].cancel()
-            del self.tasks[task_name]
-            print(f"Stopped watching order book for {symbol}")
-    
-    async def cleanup_old_data(self):
-        """清理过期的缓存数据"""
-        async with self.lock:
-            cutoff_time = datetime.now() - timedelta(minutes=self.cache_time_minutes)
+                    logger.error(f"Error fetching older data from {since} to {current_time}: {e}")
+                    time_delta = min(time_delta * 2, max_time_delta)  # 发生错误时，适当增加时间间隔
+     
             
-            # 清理tickers缓存
-            if self.tickers_cache is not None:
-                self.tickers_cache = self.tickers_cache.filter(
-                    pl.col('timestamp') >= cutoff_time.timestamp() * 1000
-                )
-            
-            # 清理OHLCV缓存
-            for key, df in list(self.ohlcv_cache.items()):
-                self.ohlcv_cache[key] = df.filter(
-                    pl.col('timestamp') >= cutoff_time.timestamp() * 1000
-                )
-            
-            # 清理订单簿缓存（因为订单簿是最新的快照，不需要按时间清理）
-            
-            # 清理最后更新时间记录
-            for key in list(self.last_updated.keys()):
-                if self.last_updated[key] < cutoff_time:
-                    del self.last_updated[key]
-            
-            print(f"Cleaned up old data (older than {self.cache_time_minutes} minutes)")
-    
-    async def start_cleanup_task(self, interval_minutes=5):
-        """启动定期清理任务"""
-        async def _cleanup_task():
-            while True:
-                await self.cleanup_old_data()
-                await asyncio.sleep(interval_minutes * 60)
-        
-        self.tasks['cleanup'] = asyncio.create_task(_cleanup_task())
-    
-    async def close(self):
-        """关闭所有任务和连接"""
-        # 取消所有任务
-        for task_name, task in self.tasks.items():
-            task.cancel()
-            print(f"Cancelled task: {task_name}")
-        
-        # 关闭交易所连接
-        await self.exchange.close()
-        print("Exchange connection closed")

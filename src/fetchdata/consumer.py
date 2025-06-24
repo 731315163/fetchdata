@@ -6,7 +6,7 @@ from communication.zeromq.factory import Factory
 import pickle
 from typing import Any, cast
 
-from exchange import Exchange
+from exchange.protocol import ExchangeProtocol
 
 from .msgtype import method_enum,match_method
 logger = logging.getLogger(__name__)
@@ -20,7 +20,8 @@ class Consumer:
         self.last_trades_sendtime = {}
         self.last_ohlcv_sendtime = {}
         self.last_orderbook_sendtime = {}
-    def send(self,method:method_enum,params:dict[str,Any]):
+        self.exchange : ExchangeProtocol=None
+    def send(self,method:method_enum,params:dict[str,Any]):...
 
 
     def get_active_symbols(self):

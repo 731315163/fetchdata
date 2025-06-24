@@ -308,7 +308,7 @@ class ExchangeProtocol(Protocol):
         """
         ...
 
-    async def watch_liquidations_for_symbols(self, symbols: list[str] = None, since: Int = None, limit: Int = None, params={}) -> list[Liquidation]:
+    async def watch_liquidations_for_symbols(self, symbols: list[str] |None= None, since: Int = None, limit: Int = None, params={}) -> list[Liquidation]:
         """
         watch the public liquidations of a trading pair
 
@@ -2481,7 +2481,7 @@ class ExchangeProtocol(Protocol):
         :param boolean [params.trigger]: set to True if you would like to fetch portfolio margin account trigger or conditional orders
         :returns dict[]: a list of `order structures <https://docs.ccxt.com/#/?id=order-structure>`
         """
-        pass
+        ...
 
     async def cancel_order(self, id: str, symbol: Str = None, params={}):
         """
