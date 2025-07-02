@@ -13,7 +13,7 @@ from pathlib import Path
 import polars as pl
 from polars import DataFrame
 
-from . import misc
+import misc
 from typenums import DEFAULT_TRADES_COLUMNS, TRADES_SCHEME,CANDLES_SCHEME,DEFAULT_DATAFRAME_COLUMNS,ListPairsWithTimeframes
 from data.converter import (
     clean_ohlcv_dataframe,
@@ -22,7 +22,7 @@ from data.converter import (
     trim_dataframe,
 )
 from typenums import CandleType, TradingMode,TimeRange
-from freqtrade.exchange import timeframe_to_seconds
+from util import timeframe_to_seconds
 
 
 logger = logging.getLogger(__name__)
@@ -419,7 +419,7 @@ class IDataHandler(ABC):
                 timeframe,
                 pair=pair,
                 fill_missing=fill_missing,
-                drop_incomplete=(drop_incomplete and enddate == pairdf.iloc[-1]["date"]),
+                drop_incomplete=(drop_incomplete and enddate == pairdf["date"].last())
             )
             self._check_empty_df(pairdf, pair, timeframe, candle_type, warn_no_data)
             return pairdf
@@ -454,9 +454,9 @@ class IDataHandler(ABC):
             ):
                 # Detect gaps between prior close and open
                 gaps = (pairdf["open"] - pairdf["close"].shift(1)) / pairdf["close"].shift(1)
-                gaps = gaps.dropna()
-                if len(gaps):
-                    candle_price_gap = max(abs(gaps))
+                gaps = gaps.drop_nulls()
+                if not gaps.is_empty():
+                    candle_price_gap = gaps.abs().max()
             if candle_price_gap > 0.1:
                 logger.info(
                     f"Price jump in {pair}, {timeframe}, {candle_type} between two candles "
@@ -480,16 +480,18 @@ class IDataHandler(ABC):
         """
 
         if timerange.starttype == "date":
-            if pairdata.iloc[0]["date"] > timerange.startdt:
+            start_date = pairdata.select(pl.col("date").first()).item()
+            if start_date > timerange.startdt:
                 logger.warning(
                     f"{pair}, {candle_type}, {timeframe}, "
-                    f"data starts at {pairdata.iloc[0]['date']:%Y-%m-%d %H:%M:%S}"
+                    f"data starts at {start_date:%Y-%m-%d %H:%M:%S}"
                 )
         if timerange.stoptype == "date":
-            if pairdata.iloc[-1]["date"] < timerange.stopdt:
+            end_date = pairdata.select(pl.col("date").last()).item()
+            if end_date < timerange.stopdt:
                 logger.warning(
                     f"{pair}, {candle_type}, {timeframe}, "
-                    f"data ends at {pairdata.iloc[-1]['date']:%Y-%m-%d %H:%M:%S}"
+                    f"data ends at {end_date:%Y-%m-%d %H:%M:%S}"
                 )
 
     def rename_futures_data(

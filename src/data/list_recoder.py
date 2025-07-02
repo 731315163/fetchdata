@@ -10,7 +10,7 @@ from typenums import MarketType,DataType
 
 
 
-class BaseDataRecoder(DataRecoder[list[list]]):
+class ListDataRecoder(DataRecoder[list[list]]):
     def __init__(self, pair: str, marketType: MarketType, datatype: DataType, timeframe="", timeout: timedelta = timedelta(minutes=10)):
          
         self.first_datetime =0

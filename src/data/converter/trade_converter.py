@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import polars as pd
+import polars as pl
 import polars as pl
 from polars import DataFrame
 
@@ -17,7 +17,7 @@ from typenums.constants import (DEFAULT_DATAFRAME_COLUMNS,
 from exceptions import OperationalException
 from typenums.timerange import TimeRange
 from typenums import TRADES_SCHEME, CandleType, TradingMode,CANDLES_SCHEME
-
+from util import timeframe_to_resample_freq
 logger = logging.getLogger(__name__)
 
 
@@ -114,7 +114,7 @@ def trades_to_ohlcv(trades: pl.DataFrame, timeframe: str) -> pl.DataFrame:
     :param timeframe: Timeframe to resample data to
     :return: OHLCV Dataframe
     """
-    from freqtrade.exchange import timeframe_to_resample_freq
+    
     
     if trades.height == 0:  # Polars 使用 height 表示行数
         raise ValueError("Trade-list empty.")

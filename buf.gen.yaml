@@ -1,0 +1,23 @@
+version: v2
+clean: true
+
+managed:
+  enabled: true
+  
+
+plugins:
+  - remote: buf.build/protocolbuffers/python
+    out: src/fetchdata/message
+    # 移除导致错误的 paths 选项，改用 managed 模式管理
+    include_imports: true
+    include_wkt: true
+  - remote: buf.build/protocolbuffers/pyi
+    out: src/fetchdata/message
+    include_imports: true
+    include_wkt: true
+   
+
+# inputs:
+#   - module: buf.build/protocolbuffers/protobuf:main
+#     paths:
+#       - google/protobuf

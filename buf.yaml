@@ -1,0 +1,10 @@
+# For details on buf.yaml configuration, visit https://buf.build/docs/configuration/v2/buf-yaml
+version: v2
+modules:
+  - path: proto          # 必须，相对于buf.yaml的Protobuf文件目录
+lint:
+  use:
+    - STANDARD
+breaking:
+  use:
+    - FILE

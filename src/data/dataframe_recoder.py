@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 import logging
 from polars import DataFrame, LazyFrame
@@ -17,27 +18,7 @@ class DataFrameRecoder(DataRecoder[DataFrame]):
         self.timeout = timeout.microseconds
         self.timekey = "timestamp"
 
-   
 
-    # def normalize_datetime(self, dt: datetime | int | float | None) -> datetime | None:
-    #     """将不同类型的时间表示转换为datetime对象"""
-    #     if dt is None:
-    #         return None
-    #     if isinstance(dt, (int, float)):
-    #         # 根据时间戳长度判断单位
-    #         timestamp = float(dt)
-    #         if timestamp > 1e15:  # 纳秒 (16-19位)
-    #             timestamp /= 1e9
-    #         elif timestamp > 1e12:  # 微秒 (13-16位)
-    #             timestamp /= 1e6
-    #         elif timestamp > 1e9:   # 毫秒 (10-13位)
-    #             timestamp /= 1000
-    #         # 秒级时间戳 (9-10位)
-    #         return datetime.fromtimestamp(timestamp, tz=timezone.utc)
-    #     # 确保datetime对象有时区信息
-    #     if dt.tzinfo is None:
-    #         return dt.replace(tzinfo=timezone.utc)
-    #     return dt
     
 
     def append(self, data: DataFrame, dt: datetime | int | float | None = None):
@@ -58,7 +39,7 @@ class DataFrameRecoder(DataRecoder[DataFrame]):
         if not self.data.is_empty():
             data = self._ensure_time_format(data)
 
-      
+        
         self.data = pl.concat([self.data, data])
   
      

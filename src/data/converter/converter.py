@@ -9,11 +9,11 @@ import numpy as np
 import polars as pl
 from polars import DataFrame
 
-from fetchdata.exchange import timeframe_to_seconds
+from util import timeframe_to_seconds
 from typenums.constants import DEFAULT_DATAFRAME_COLUMNS, Config
 from typenums.timerange import TimeRange
 from typenums import CandleType, TradingMode,TRADES_SCHEME,CANDLES_SCHEME
-from freqtrade.exchange import timeframe_to_resample_freq
+from util import timeframe_to_resample_freq
 
 logger = logging.getLogger(__name__)
 

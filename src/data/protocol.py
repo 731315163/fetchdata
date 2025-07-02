@@ -39,7 +39,12 @@ class DataRecoder[T](ABC):
     def prune_expired_data(self,td:timedelta|int|None = None):
         """删除超时的数据"""
         ...
-    
+    @abstractmethod
+    def __getitem__(self, index)->T:
+        """支持索引访问和切片"""
+        ...
+    @abstractmethod  
+    def __len__(self) -> int:...
     # @abstractmethod
     # def window(self):...
     # # def del_timeout_data(self,dt:datetime|None=None):

@@ -7,72 +7,70 @@ import time
 from datetime import datetime
 
 import numpy as np
-import polars as pd
+import polars as pl
 
 from typenums.constants import DEFAULT_ORDERFLOW_COLUMNS, ORDERFLOW_ADDED_COLUMNS, Config
 from exceptions import DependencyException
-
+from util import timeframe_to_resample_freq,timeframe_to_seconds
 
 logger = logging.getLogger(__name__)
 
 
-def _init_dataframe_with_trades_columns(dataframe: pd.DataFrame):
-    """
-    Populates a dataframe with trades columns
-    :param dataframe: Dataframe to populate
-    """
-    # Initialize columns with appropriate dtypes
-    for column in ORDERFLOW_ADDED_COLUMNS:
-        dataframe[column] = np.nan
+# def _init_dataframe_with_trades_columns(dataframe: pd.DataFrame):
+#     """
+#     Populates a dataframe with trades columns
+#     :param dataframe: Dataframe to populate
+#     """
+#     # Initialize columns with appropriate dtypes
+#     for column in ORDERFLOW_ADDED_COLUMNS:
+#         dataframe[column] = np.nan
     
-    # Set columns to object type
-    for column in (
-        "trades",
-        "orderflow",
-        "imbalances",
-        "stacked_imbalances_bid",
-        "stacked_imbalances_ask",
-    ):
-        dataframe[column] = dataframe[column].astype(object)
+#     # Set columns to object type
+#     for column in (
+#         "trades",
+#         "orderflow",
+#         "imbalances",
+#         "stacked_imbalances_bid",
+#         "stacked_imbalances_ask",
+#     ):
+#         dataframe[column] = dataframe[column].astype(object)
 
 
-def timeframe_to_DateOffset(timeframe: str) -> pd.DateOffset:
-    """
-    Translates the timeframe interval value written in the human readable
-    form ('1m', '5m', '1h', '1d', '1w', etc.) to the number
-    of seconds for one timeframe interval.
-    """
-    from freqtrade.exchange import timeframe_to_seconds
+# def timeframe_to_DateOffset(timeframe: str) -> pd.DateOffset:
+#     """
+#     Translates the timeframe interval value written in the human readable
+#     form ('1m', '5m', '1h', '1d', '1w', etc.) to the number
+#     of seconds for one timeframe interval.
+#     """
 
-    timeframe_seconds = timeframe_to_seconds(timeframe)
-    timeframe_minutes = timeframe_seconds // 60
-    if timeframe_minutes < 1:
-        return pd.DateOffset(seconds=timeframe_seconds)
-    elif 59 < timeframe_minutes < 1440:
-        return pd.DateOffset(hours=timeframe_minutes // 60)
-    elif 1440 <= timeframe_minutes < 10080:
-        return pd.DateOffset(days=timeframe_minutes // 1440)
-    elif 10000 < timeframe_minutes < 43200:
-        return pd.DateOffset(weeks=1)
-    elif timeframe_minutes >= 43200 and timeframe_minutes < 525600:
-        return pd.DateOffset(months=1)
-    elif timeframe == "1y":
-        return pd.DateOffset(years=1)
-    else:
-        return pd.DateOffset(minutes=timeframe_minutes)
+#     timeframe_seconds = timeframe_to_seconds(timeframe)
+#     timeframe_minutes = timeframe_seconds // 60
+#     if timeframe_minutes < 1:
+#         return pd.DateOffset(seconds=timeframe_seconds)
+#     elif 59 < timeframe_minutes < 1440:
+#         return pd.DateOffset(hours=timeframe_minutes // 60)
+#     elif 1440 <= timeframe_minutes < 10080:
+#         return pd.DateOffset(days=timeframe_minutes // 1440)
+#     elif 10000 < timeframe_minutes < 43200:
+#         return pd.DateOffset(weeks=1)
+#     elif timeframe_minutes >= 43200 and timeframe_minutes < 525600:
+#         return pd.DateOffset(months=1)
+#     elif timeframe == "1y":
+#         return pd.DateOffset(years=1)
+#     else:
+#         return pd.DateOffset(minutes=timeframe_minutes)
 
 
-def _calculate_ohlcv_candle_start_and_end(df: pd.DataFrame, timeframe: str):
-    from freqtrade.exchange import timeframe_to_resample_freq
-    if df is not None and not df.is_empty():
-        timeframe_frequency = timeframe_to_resample_freq(timeframe)
-        dofs = timeframe_to_DateOffset(timeframe)
-        # calculate ohlcv candle start and end
-        df["datetime"] = pd.to_datetime(df["date"], unit="ms")
-        df["candle_start"] = df["datetime"].dt.floor(timeframe_frequency)
-        # used in _now_is_time_to_refresh_trades
-        df["candle_end"] = df["candle_start"] + dofs
-        return df.drop("datetime")
+# def _calculate_ohlcv_candle_start_and_end(df: pd.DataFrame, timeframe: str):
+#     if df is not None and not df.is_empty():
+#         timeframe_frequency = timeframe_to_resample_freq(timeframe)
+#         dofs = timeframe_to_DateOffset(timeframe)
+#         # calculate ohlcv candle start and end
+#         df["datetime"] = pd.to_datetime(df["date"], unit="ms")
+#         df["candle_start"] = df["datetime"].dt.floor(timeframe_frequency)
+#         # used in _now_is_time_to_refresh_trades
+#         df["candle_end"] = df["candle_start"] + dofs
+#         return df.drop("datetime")
 
 
 # def populate_dataframe_with_trades(

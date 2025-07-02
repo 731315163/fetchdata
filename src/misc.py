@@ -11,7 +11,7 @@ from typing import Any, TextIO
 from urllib.parse import urlparse
 
 import pandas as pd
-import rapidjson
+import orjson 
 
 from typenums import SignalTagType, SignalType
 
@@ -25,7 +25,9 @@ def dump_json_to_file(file_obj: TextIO, data: Any) -> None:
     :param file_obj: File object to write to
     :param data: JSON Data to save
     """
-    rapidjson.dump(data, file_obj, default=str, number_mode=rapidjson.NM_NATIVE)
+    
+    text= orjson.dumps(data)
+    file_obj.write(text.decode('utf-8'))
 
 
 def file_dump_json(filename: Path, data: Any, is_zip: bool = False, log: bool = True) -> None:
@@ -60,7 +62,9 @@ def json_load(datafile: TextIO) -> Any:
     Use this to have a consistent experience,
     set number_mode to "NM_NATIVE" for greatest speed
     """
-    return rapidjson.load(datafile, number_mode=rapidjson.NM_NATIVE)
+    
+   
+    return orjson.loads(datafile.read())
 
 
 def file_load_json(file: Path):

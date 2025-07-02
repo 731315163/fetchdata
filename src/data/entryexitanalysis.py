@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from freqtrade.configuration import TimeRange
-from freqtrade.constants import Config
-from freqtrade.data.btanalysis import (
+from typenums import TimeRange
+from typenums.constants import Config
+from data.btanalysis import (
     BT_DATA_COLUMNS,
     load_backtest_data,
     load_backtest_stats,
@@ -13,8 +13,8 @@ from freqtrade.data.btanalysis import (
     load_rejected_signals,
     load_signal_candles,
 )
-from freqtrade.exceptions import ConfigurationError, OperationalException
-from freqtrade.util import print_df_rich_table
+from exceptions import ConfigurationError, OperationalException
+from util import print_df_rich_table
 
 
 logger = logging.getLogger(__name__)

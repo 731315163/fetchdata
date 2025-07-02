@@ -1,11 +1,8 @@
-from fetchdata import ExchangeFactory
-
-
-
+from src.exchange import CCXTExchangeFactory
 
 
 def test_get_exchange():
-    exchange = ExchangeFactory.get_exchange("bitmex", config={})
+    exchange = CCXTExchangeFactory.get_exchange("bitmex", config={})
     assert exchange.id == "bitmex"
     assert exchange.name == "BitMEX"
     assert exchange.has["watchOrderBook"]
@@ -13,3 +10,4 @@ def test_get_exchange():
     assert exchange.has["watchTicker"]
     assert exchange.has["watchOHLCV"]
     assert exchange.has["watchBalance"]
+

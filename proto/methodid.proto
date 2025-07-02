@@ -1,0 +1,35 @@
+syntax = "proto3";
+import "google/protobuf/struct.proto";
+//import "google/protobuf/any.proto";
+package fetchdata;
+enum MethodID {
+  // 必须以0值开始作为默认值
+  UNDEFINED = 0;
+  
+  
+  EXCHANGE = 1;
+  // 市场信息接口
+  MARKET = 2;
+  
+  // 行情数据接口
+  OHLCV = 10;
+  UN_OHLCV = 11;
+  ORDERBOOK = 20;
+  TICKERS = 30;
+  TRADES = 40;
+  UN_TRADES = 41;
+  
+  // 历史数据接口
+  HISTORY_OHLCV = 55;
+  HISTORY_ORDERBOOK = 56;
+  HISTORY_TICKERS = 57;
+  HISTORY_TRADES = 58;
+}
+
+
+
+message InvokeMethod {
+  MethodID method_id = 1;
+  google.protobuf.Struct params = 2;
+}
+

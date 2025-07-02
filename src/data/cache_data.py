@@ -70,24 +70,21 @@ class DataCache[T](dict[DataKey,DataRecoder[T]]):
     @abstractmethod
     def convert(self,data,datatype)->T:...
     
-    async def append(self,key:DataKey, data,dt:datetime|int|None=None):
+    def append(self,key:DataKey, data,dt:datetime|int|None=None):
         pair,timeframe,marketType,datatype = key
         convert_data = self.convert(data,datatype=datatype)
-        async with self.lock:
-            self.get_recoder(pair,timeframe=timeframe,marketType=marketType,datatype=datatype).append(convert_data,dt)
+        self.get_recoder(key = key).append(convert_data,dt)
         
-    async def prepend(self,key:DataKey,data,dt:datetime|int|None=None):
+    def prepend(self,key:DataKey,data,dt:datetime|int|None=None):
         pair,timeframe,marketType,datatype = key
         convert_data = self.convert(data,datatype)
-        async with self.lock:
-            self.get_recoder(pair,timeframe=timeframe,marketType=marketType,datatype=datatype).prepend(convert_data,dt)
+        self.get_recoder(key= key).prepend(convert_data,dt)
     
-    async def prune_expired_data(self,key:DataKey,td:timedelta|int|None = None):
+    def prune_expired_data(self,key:DataKey,td:timedelta|int|None = None):
         """删除超时的数据"""
         
         pair,timeframe,marketType,datatype = key
-        async with self.lock:
-            self.get_recoder(pair,timeframe=timeframe,marketType=marketType,datatype=datatype).prune_expired_data(td)
+        self.get_recoder(pair,timeframe=timeframe,marketType=marketType,datatype=datatype).prune_expired_data(td)
 
 class DataframeCache(DataCache[DataFrame]):
     def get_recoder(self, pair=None, *, timeframe=None, marketType=None, datatype=None, key=None) -> DataRecoder:

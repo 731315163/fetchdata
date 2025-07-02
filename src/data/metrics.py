@@ -4,14 +4,13 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import numpy as np
-import pandas as pd
-
+import polars as pl
 
 logger = logging.getLogger(__name__)
 
 
 def calculate_market_change(
-    data: dict[str, pd.DataFrame], column: str = "close", min_date: datetime | None = None
+    data: dict[str, pl.DataFrame], column: str = "close", min_date: datetime | None = None
 ) -> float:
     """
     Calculate market change based on "column".
@@ -30,11 +29,11 @@ def calculate_market_change(
         df1 = df
         if min_date is not None:
             df1 = df1[df1["date"] >= min_date]
-        if df1.empty:
+        if df1.is_empty():
             logger.warning(f"Pair {pair} has no data after {min_date}.")
             continue
-        start = df1[column].dropna().iloc[0]
-        end = df1[column].dropna().iloc[-1]
+        start = df1[column].drop_nulls()[0]
+        end = df1[column].drop_nulls()[-1]
         tmp_means.append((end - start) / start)
 
     if not tmp_means:
@@ -43,8 +42,8 @@ def calculate_market_change(
 
 
 def combine_dataframes_by_column(
-    data: dict[str, pd.DataFrame], column: str = "close"
-) -> pd.DataFrame:
+    data: dict[str, pl.DataFrame], column: str = "close"
+) -> pl.DataFrame:
     """
     Combine multiple dataframes "column"
     :param data: Dict of Dataframes, dict key should be pair.
@@ -54,15 +53,16 @@ def combine_dataframes_by_column(
     """
     if not data:
         raise ValueError("No data provided.")
-    df_comb = pd.concat(
-        [data[pair].set_index("date").rename({column: pair}, axis=1)[pair] for pair in data], axis=1
+   
+    df_comb = pl.concat(
+        [data[pair].rename({column: pair}).select(pair) for pair in data], how="horizontal"
     )
     return df_comb
 
 
 def combined_dataframes_with_rel_mean(
-    data: dict[str, pd.DataFrame], fromdt: datetime, todt: datetime, column: str = "close"
-) -> pd.DataFrame:
+    data: dict[str, pl.DataFrame], fromdt: datetime, todt: datetime, column: str = "close"
+) -> pl.DataFrame:
     """
     Combine multiple dataframes "column"
     :param data: Dict of Dataframes, dict key should be pair.
@@ -73,16 +73,24 @@ def combined_dataframes_with_rel_mean(
     """
     df_comb = combine_dataframes_by_column(data, column)
     # Trim dataframes to the given timeframe
-    df_comb = df_comb.iloc[(df_comb.index >= fromdt) & (df_comb.index < todt)]
-    df_comb["count"] = df_comb.count(axis=1)
-    df_comb["mean"] = df_comb.mean(axis=1)
-    df_comb["rel_mean"] = df_comb["mean"].pct_change().fillna(0).cumsum()
-    return df_comb[["mean", "rel_mean", "count"]]
+    df_comb = df_comb.filter((df_comb["date"] >= fromdt) & (df_comb["date"] < todt))
+    
+    df_comb = df_comb.with_columns([
+        pl.sum_horizontal(pl.col("*").is_not_null()).alias("count"),
+        pl.mean_horizontal(pl.col("*")).alias("mean")
+    ])
+    df_comb = df_comb.with_columns([
+        (pl.col("mean").diff(n=1, null_behavior="forward") / pl.col("mean").shift(1))
+        .fill_null(0)
+        .cumsum()
+        .alias("rel_mean")
+    ])
+    return df_comb.select(["mean", "rel_mean", "count"])
 
 
 def combine_dataframes_with_mean(
-    data: dict[str, pd.DataFrame], column: str = "close"
-) -> pd.DataFrame:
+    data: dict[str, pl.DataFrame], column: str = "close"
+) -> pl.DataFrame:
     """
     Combine multiple dataframes "column"
     :param data: Dict of Dataframes, dict key should be pair.
@@ -99,8 +107,8 @@ def combine_dataframes_with_mean(
 
 
 def create_cum_profit(
-    df: pd.DataFrame, trades: pd.DataFrame, col_name: str, timeframe: str
-) -> pd.DataFrame:
+    df: pl.DataFrame, trades: pl.DataFrame, col_name: str, timeframe: str
+) -> pl.DataFrame:
     """
     Adds a column `col_name` with the cumulative profit for the given trades array.
     :param df: DataFrame with date index
@@ -112,7 +120,7 @@ def create_cum_profit(
     """
     if len(trades) == 0:
         raise ValueError("Trade dataframe empty.")
-    from freqtrade.exchange import timeframe_to_resample_freq
+    from util import timeframe_to_resample_freq
 
     timeframe_freq = timeframe_to_resample_freq(timeframe)
     # Resample to timeframe to make sure trades match candles
@@ -126,9 +134,9 @@ def create_cum_profit(
 
 
 def _calc_drawdown_series(
-    profit_results: pd.DataFrame, *, date_col: str, value_col: str, starting_balance: float
-) -> pd.DataFrame:
-    max_drawdown_df = pd.DataFrame()
+    profit_results: pl.DataFrame, *, date_col: str, value_col: str, starting_balance: float
+) -> pl.DataFrame:
+    max_drawdown_df = pl.DataFrame()
     max_drawdown_df["cumulative"] = profit_results[value_col].cumsum()
     max_drawdown_df["high_value"] = np.maximum(0, max_drawdown_df["cumulative"].cummax())
     max_drawdown_df["drawdown"] = max_drawdown_df["cumulative"] - max_drawdown_df["high_value"]
@@ -147,7 +155,7 @@ def _calc_drawdown_series(
 
 
 def calculate_underwater(
-    trades: pd.DataFrame,
+    trades: pl.DataFrame,
     *,
     date_col: str = "close_date",
     value_col: str = "profit_ratio",
@@ -175,15 +183,15 @@ def calculate_underwater(
 @dataclass()
 class DrawDownResult:
     drawdown_abs: float = 0.0
-    high_date: pd.Timestamp = None
-    low_date: pd.Timestamp = None
+    high_date: pl.Timestamp = None
+    low_date: pl.Timestamp = None
     high_value: float = 0.0
     low_value: float = 0.0
     relative_account_drawdown: float = 0.0
 
 
 def calculate_max_drawdown(
-    trades: pd.DataFrame,
+    trades: pl.DataFrame,
     *,
     date_col: str = "close_date",
     value_col: str = "profit_abs",
@@ -231,7 +239,7 @@ def calculate_max_drawdown(
     )
 
 
-def calculate_csum(trades: pd.DataFrame, starting_balance: float = 0) -> tuple[float, float]:
+def calculate_csum(trades: pl.DataFrame, starting_balance: float = 0) -> tuple[float, float]:
     """
     Calculate min/max cumsum of trades, to show if the wallet/stake amount ratio is sane
     :param trades: DataFrame containing trades (requires columns close_date and profit_percent)
@@ -242,7 +250,7 @@ def calculate_csum(trades: pd.DataFrame, starting_balance: float = 0) -> tuple[f
     if len(trades) == 0:
         raise ValueError("Trade dataframe empty.")
 
-    csum_df = pd.DataFrame()
+    csum_df = pl.DataFrame()
     csum_df["sum"] = trades["profit_abs"].cumsum()
     csum_min = csum_df["sum"].min() + starting_balance
     csum_max = csum_df["sum"].max() + starting_balance
@@ -264,7 +272,7 @@ def calculate_cagr(days_passed: int, starting_balance: float, final_balance: flo
     return (final_balance / starting_balance) ** (1 / (days_passed / 365)) - 1
 
 
-def calculate_expectancy(trades: pd.DataFrame) -> tuple[float, float]:
+def calculate_expectancy(trades: pl.DataFrame) -> tuple[float, float]:
     """
     Calculate expectancy
     :param trades: DataFrame containing trades (requires columns close_date and profit_abs)
@@ -296,7 +304,7 @@ def calculate_expectancy(trades: pd.DataFrame) -> tuple[float, float]:
 
 
 def calculate_sortino(
-    trades: pd.DataFrame, min_date: datetime, max_date: datetime, starting_balance: float
+    trades: pl.DataFrame, min_date: datetime, max_date: datetime, starting_balance: float
 ) -> float:
     """
     Calculate sortino
@@ -324,7 +332,7 @@ def calculate_sortino(
 
 
 def calculate_sharpe(
-    trades: pd.DataFrame, min_date: datetime, max_date: datetime, starting_balance: float
+    trades: pl.DataFrame, min_date: datetime, max_date: datetime, starting_balance: float
 ) -> float:
     """
     Calculate sharpe
@@ -351,7 +359,7 @@ def calculate_sharpe(
 
 
 def calculate_calmar(
-    trades: pd.DataFrame, min_date: datetime, max_date: datetime, starting_balance: float
+    trades: pl.DataFrame, min_date: datetime, max_date: datetime, starting_balance: float
 ) -> float:
     """
     Calculate calmar
@@ -387,7 +395,7 @@ def calculate_calmar(
     return calmar_ratio
 
 
-def calculate_sqn(trades: pd.DataFrame, starting_balance: float) -> float:
+def calculate_sqn(trades: pl.DataFrame, starting_balance: float) -> float:
     """
     Calculate System Quality Number (SQN) - Van K. Tharp.
     SQN measures systematic trading quality and takes into account both

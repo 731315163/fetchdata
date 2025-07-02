@@ -9,4 +9,7 @@ async def main():
     await exchange.close()
 
 
-run(main())
+
+
+if __name__ == '__main__':
+    run(main())

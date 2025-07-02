@@ -4,76 +4,27 @@
 
 
 
-import asyncio
-import base64
-import binascii
-import calendar
-import collections
-import datetime
 # import functools
-import gzip
-import hashlib
-import hmac
-import io
-import json
-import logging
-import types
-from email.utils import parsedate
 
-from ccxt.async_support.base.exchange import Exchange
-from ccxt.base.decimal_to_precision import (DECIMAL_PLACES, NO_PADDING, ROUND,
-                                            ROUND_DOWN, ROUND_UP,
-                                            SIGNIFICANT_DIGITS, TICK_SIZE,
-                                            TRUNCATE, decimal_to_precision,
-                                            number_to_string)
-from ccxt.base.errors import (AccountSuspended, ArgumentsRequired,
-                              AuthenticationError, BadRequest, BadResponse,
-                              BadSymbol, DDoSProtection, ExchangeError,
-                              ExchangeNotAvailable, InsufficientFunds,
-                              InvalidAddress, InvalidNonce, InvalidOrder,
-                              InvalidProxySettings, MarginModeAlreadySet,
-                              MarketClosed, NetworkError, NotSupported,
-                              NullResponse, OnMaintenance, OperationFailed,
-                              OperationRejected, OrderImmediatelyFillable,
-                              OrderNotFillable, OrderNotFound,
-                              PermissionDenied, RateLimitExceeded,
-                              RequestTimeout, UnsubscribeError)
-from ccxt.base.precise import Precise
-from ccxt.base.types import (Any, BalanceAccount, Balances, Bool,
-                             BorrowInterest, CancellationRequest,
-                             ConstructorArgs, Conversion, CrossBorrowRate,
-                             Currencies, Currency, DepositAddress, FundingRate,
-                             FundingRates, Greeks, IndexType, Int,
+from ccxt.base.decimal_to_precision import DECIMAL_PLACES, NO_PADDING
+from ccxt.base.types import (Any, Balances, BorrowInterest, Conversion,
+                             CrossBorrowRate, Currencies, DepositAddress,
+                             FundingRate, FundingRates, Greeks, Int,
                              IsolatedBorrowRate, IsolatedBorrowRates,
-                             LedgerEntry, Leverage, Leverages, LeverageTier,
-                             LeverageTiers, LongShortRatio, MarginMode,
-                             MarginModes, MarginModification, Market,
-                             MarketInterface, MarketType, Num, Option, Order,
-                             OrderBook, OrderRequest, OrderSide, OrderType,
-                             Position, Str, Strings, Ticker, Tickers, Trade,
+                             LedgerEntry, Leverages, LeverageTiers,
+                             LongShortRatio, MarginMode, MarginModes,
+                             MarginModification, Market, MarketInterface,
+                             MarketType, Num, Option, Order, OrderBook,
+                             OrderRequest, OrderSide, OrderType, Position, Str,
+                             Strings, Ticker, Tickers, Trade,
                              TradingFeeInterface, TradingFees, Transaction,
                              TransferEntry)
+
 # ecdsa signing
-from ccxt.static_dependencies import ecdsa, keccak
 # eth signing
-from ccxt.static_dependencies.ethereum import abi, account
-from ccxt.static_dependencies.msgpack import packb
 # starknet
-from ccxt.static_dependencies.starknet.ccxt_utils import \
-    get_private_key_from_eth_signature
-from ccxt.static_dependencies.starknet.hash.address import compute_address
-from ccxt.static_dependencies.starknet.hash.selector import \
-    get_selector_from_name
-from ccxt.static_dependencies.starknet.hash.utils import (message_signature,
-                                                          private_to_stark_key)
-from ccxt.static_dependencies.starknet.utils.typed_data import \
-    TypedData as TypedDataDataclass
 # rsa jwt signing
-from cryptography.hazmat import backends
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import ed25519, padding
 # from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 # load orjson if available, otherwise default to json
 orjson = None
@@ -81,46 +32,37 @@ try:
     import orjson as orjson
 except ImportError:
     pass
-import hashlib
-import json
-import math
-import random
-import re
-# import sys
-import time
-import urllib.parse as _urlencode
-import uuid
-import zlib
-from decimal import Decimal
-from numbers import Number
-# import socket
-from ssl import SSLError
-from time import mktime
-from typing import Any, ClassVar,   Optional, Protocol, Type, Union
-from wsgiref.handlers import format_date_time
+from abc import ABC, abstractmethod
+from typing import Any, ClassVar, Protocol
 
-import ccxt.async_support
-from ccxt.async_support.base.ws.cache import (ArrayCache,
-                                              ArrayCacheBySymbolById,
-                                              ArrayCacheBySymbolBySide,
-                                              ArrayCacheByTimestamp)
-from ccxt.async_support.base.ws.client import Client
-from ccxt.base.errors import (ArgumentsRequired, BadRequest, ChecksumError,
-                              NotSupported)
-from ccxt.base.precise import Precise
 from ccxt.base.types import (Any, Balances, Int, Liquidation, Num, Order,
                              OrderBook, OrderSide, OrderType, Position, Str,
                              Strings, Ticker, Tickers, Trade)
-from ccxt.pro import binance, bitmex, bitstamp, coinbase, kucoin, okx
-from requests import Session
-from requests.exceptions import ConnectionError as requestsConnectionError
-from requests.exceptions import (HTTPError, RequestException, Timeout,
-                                 TooManyRedirects)
-from requests.utils import default_user_agent
+
+from typenums import MarketType
+from typenums.Literal import TimeFrame
 
 
+class ExchangeProtocol(ABC):
+  
+     
+    @abstractmethod
+    def un_watch_trades(self,pair:str,until:int,marketType: MarketType = "future" ) -> None:...
+   
+    @abstractmethod
+    def un_watch_ohlcv(self,pair:str,timeframe:TimeFrame,until:int,marketType: MarketType = "future") -> None:...
+    @abstractmethod   
+    async def update(self) -> None:...
+    @abstractmethod
+    async def trades(self, symbol: str, since:int,marketType: MarketType = "future", limit=None, params=None):...
+     
+    @abstractmethod
+    async def ohlcv(self, symbol: str,timeframe: str, since:int,marketType: MarketType = "future",limit=None,  params=None):...
+
+    @abstractmethod
+    async def tickers(self, symbol, since:int,marketType):...
 # 定义交易所协议，描述交易所类应具备的基本接口
-class ExchangeProtocol(Protocol):
+class CCXTExchangeProtocol(Protocol):
 # -*- coding: utf-8 -*-
 
 # PLEASE DO NOT EDIT THIS FILE, IT IS GENERATED AND WILL BE OVERWRITTEN:

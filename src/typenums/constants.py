@@ -6,8 +6,8 @@ bot constants
 
 from typing import Any, Literal
 
-from . import CandleType, PriceType
-
+from .pricetype import  PriceType
+from .candletype import CandleType
 
 DOCS_LINK = "https://www.freqtrade.io/en/stable"
 DEFAULT_CONFIG = "config.json"
