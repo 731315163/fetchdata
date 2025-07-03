@@ -12,7 +12,7 @@ from time import time
 import pytest
 from ccxt.base.types import Trade
 
-from exchange import CCXTExchangeFactory, ExchangeProtocol
+from exchange import CCXTExchangeFactory, ExchangeProtocol,ExchangeFactory
 from exchange.exchange import Exchange,DataKey
 from exchange.protocol import CCXTExchangeProtocol
 from typenums import DataType, MarketType, State  
@@ -62,7 +62,7 @@ async def test_get_ohlcv():
 
 @pytest.fixture
 def exchange():
-    return ExchangeProtocol(exchange_name="binance")
+    return ExchangeFactory.get_exchange(name="binance")
 
 @pytest.fixture
 def data_key():
@@ -135,14 +135,14 @@ async def test_data_cache(exchange, data_key):
 
 
 @pytest.mark.asyncio
-async def test_exchange_initialization():
-    ex = ExchangeProtocol(exchange_name="binance")
+async def test_exchange_initialization(exchange):
+    ex =exchange
     assert ex.exchange_name == "binance"
     assert ex.rateLimit > 0  # 验证rateLimit正确初始化
 
 @pytest.mark.asyncio
-async def test_timeframe_methods():
-    ex = ExchangeProtocol(exchange_name="binance")
+async def test_timeframe_methods(exchange):
+    ex =exchange
     
     # 测试时间窗口计算
     assert ex.data_internal_ratio == 10  # 验证默认值
@@ -150,8 +150,8 @@ async def test_timeframe_methods():
     assert ex._fetch_old_ohlcv.__qualname__  # 验证方法存在
 
 @pytest.mark.asyncio
-async def test_error_handling():
-    ex = ExchangeProtocol(exchange_name="binance")
+async def test_error_handling(exchange):
+    ex =exchange
     
     # 测试无效参数处理
     with pytest.raises(Exception):
