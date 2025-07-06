@@ -8,8 +8,8 @@ from datetime import datetime, timezone
 from typing import Self
 
 
-from .constants import DATETIME_PRINT_FORMAT
-from .exceptions import ConfigurationError
+from typenums.constants import DATETIME_PRINT_FORMAT
+from typenums.exceptions import ConfigurationError
 from util import dt_from_ts
 
 

@@ -18,5 +18,9 @@ from .polars_scheme import CANDLES_SCHEME, TRADES_SCHEME
 from .pricetype import PriceType
 from .signaltype import SignalDirection, SignalTagType, SignalType
 from .state import State
-from .timerange import TimeRange
 from .tradingmode import TradingMode
+from .timestamp import TimeStamp
+
+
+
+

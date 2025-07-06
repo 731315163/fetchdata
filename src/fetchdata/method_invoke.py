@@ -19,7 +19,6 @@ async def invoke_method(invoke_method: InvokeMethod,ex:ExchangeProtocol)  :
     since = int(para["since"].number_value)
 
     match method:
-        
         case MethodID.OHLCV:
             timeframe = para["timeframe"].string_value
             return await ex.ohlcv(symbol=symbol,timeframe=timeframe,marketType=marktype,since=since)

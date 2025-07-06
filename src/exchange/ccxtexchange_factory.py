@@ -29,7 +29,9 @@ class CCXTExchangeFactory:
         kucoin.__name__: kucoin,
     }
     exchanges= {}
-    
+    @classmethod
+    def getkey_by_config(cls,config:dict)->tuple:
+        return config["name"] ,config.get("api_key","")
     @classmethod
     def get_exchange(cls, name: str, config: dict|str = {}) -> CCXTExchangeProtocol:
         """
@@ -70,15 +72,16 @@ class CCXTExchangeFactory:
         name = config["name"]
         if name not in cls.EXCHANGES:
             raise ValueError(f"Exchange {name} not supported")
-        
-        if config in cls.exchanges:
-            return cls.exchanges[config]
+        key = cls.getkey_by_config(config)
+        if key in cls.exchanges:
+            return cls.exchanges[key]
         else:
             ex = cls.get_exchange(name, config)
-            cls.exchanges[config] = ex
+            cls.exchanges[key] = ex
             # 创建并返回交易所实例
             return ex
     @classmethod
     def del_exchange_instance(cls, config)  :   
-         if config in cls.exchanges:
-            del cls.exchanges[config]
+         key = cls.getkey_by_config(config)
+         if key in cls.exchanges:
+            del cls.exchanges[key]

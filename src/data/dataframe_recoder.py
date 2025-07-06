@@ -4,7 +4,7 @@ import logging
 from polars import DataFrame, LazyFrame
 from data.protocol import DataRecoder,DataKey
 import polars as pl
-
+import pyarrow as pa
 from typenums import MarketType, DataType
 
 
@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 class DataFrameRecoder(DataRecoder[DataFrame]):
 
     def __init__(self, pair: str, marketType: MarketType, datatype: DataType, timeframe="", data: DataFrame | None = None, timeout: timedelta = timedelta(minutes=10)):
-        data= DataFrame() if data is None else data
+        self.data= DataFrame() if data is None else data
+
         super().__init__(pair=pair, marketType=marketType, datatype=datatype, timeframe=timeframe)
         self.timeout = timeout.microseconds
         self.timekey = "timestamp"
@@ -112,9 +113,9 @@ class DataFrameRecoder(DataRecoder[DataFrame]):
             # 记录错误但继续运行
             logger.error(f"警告: 修剪过期数据时出错: {e}")
 
-    def __getitem__(self, index):
+    def __getitem__(self, index)->pa.Table:
         """支持索引访问和切片"""
-        return self.data[index,:]
+        return self.data[index,:].to_arrow()
       
     def __len__(self) -> int:
         return len(self.data)

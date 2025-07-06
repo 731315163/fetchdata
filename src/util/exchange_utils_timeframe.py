@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import ccxt
 from ccxt import ROUND_DOWN, ROUND_UP
@@ -14,7 +14,12 @@ def timeframe_to_seconds(timeframe: str) -> int:
     """
     return ccxt.Exchange.parse_timeframe(timeframe)
 
-
+def timeframe_to_timedelta(timeframe: str) -> timedelta:
+    """
+    Translates the timeframe interval value written in the human readable
+    form ('1m', '5m', '1h', '1d', '1w', etc.)
+    """
+    return timedelta(seconds=ccxt.Exchange.parse_timeframe(timeframe))
 def timeframe_to_minutes(timeframe: str) -> int:
     """
     Same as timeframe_to_seconds, but returns minutes.

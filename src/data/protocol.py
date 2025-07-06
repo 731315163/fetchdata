@@ -5,8 +5,10 @@ from datetime import datetime, timedelta, timezone
 import time
 from typing import Literal
 import logging
-from typenums import MarketType,TRADES_SCHEME,CANDLES_SCHEME,DataType,State
 
+from polars import date
+from typenums import MarketType,TRADES_SCHEME,CANDLES_SCHEME,DataType,State, TimeStamp
+import pyarrow as pa
 DataKey = namedtuple('DataKey', ['pair', 'timeframe', 'marketType', 'datatype'])
 
 class DataRecoder[T](ABC):
@@ -15,10 +17,10 @@ class DataRecoder[T](ABC):
         self.timeframe: str =timeframe
         self.marketType:MarketType = marketType
         self.datatype: DataType =datatype
-        self.first_datetime :int= -1
-        self.last_datetime :int =-1
+        self.first_datetime :TimeStamp=-1
+        self.last_datetime :TimeStamp=-1
         # self.timekey =''
-        self.timeout:int = timeout_ms.microseconds
+        self.timeout:float = timeout_ms.microseconds
         self.state:State = State.RUNNING
        
     @property
@@ -40,7 +42,7 @@ class DataRecoder[T](ABC):
         """删除超时的数据"""
         ...
     @abstractmethod
-    def __getitem__(self, index)->T:
+    def __getitem__(self, index)->pa.Table:
         """支持索引访问和切片"""
         ...
     @abstractmethod  

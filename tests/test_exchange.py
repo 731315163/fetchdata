@@ -9,9 +9,10 @@ from time import time
 
 # tests/conftest.py
 # tests/test_exchange_functionality.py
+from polars import DataFrame
 import pytest
 from ccxt.base.types import Trade
-
+import pyarrow as pa
 from exchange import CCXTExchangeFactory, ExchangeProtocol,ExchangeFactory
 from exchange.exchange import Exchange,DataKey
 from exchange.protocol import CCXTExchangeProtocol
@@ -75,15 +76,17 @@ def data_key():
 @pytest.mark.asyncio
 async def test_fetch_trades_success(exchange):
     # 测试正常获取交易数据
-    dt = datetime.now(tz=timezone.utc) - timedelta(days=1)
+    dt = datetime.now(timezone.utc) 
     dt_int = int(dt.timestamp() * 1000)
+    exchange.set_since(data_key, dt,timedelta(minutes=1))
+    await exchange.update()
+    data = await exchange.trades(symbol="BTC/USDT", since=dt)
     
-    data = await exchange.exchange.fetch_trades(symbol="BTC/USDT", since=dt_int)
-    
-    assert isinstance(data, list)
+    assert data is None
+    await exchange.update()
+    data = await exchange.trades(symbol="BTC/USDT", since=dt)
     assert len(data) > 0
-    assert all(isinstance(trade, dict) for trade in data)
-    assert all("timestamp" in trade and "price" in trade for trade in data)
+    assert isinstance(data, pa.Table)    
 
 @pytest.mark.asyncio
 async def test_fetch_ohlcv_success(exchange):

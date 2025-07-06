@@ -15,7 +15,7 @@ from typenums.constants import (DEFAULT_DATAFRAME_COLUMNS,
                                  DEFAULT_TRADES_COLUMNS, TRADES_DTYPES, Config,
                                  TradeList)
 from exceptions import OperationalException
-from typenums.timerange import TimeRange
+from data.timerange import TimeRange
 from typenums import TRADES_SCHEME, CandleType, TradingMode,CANDLES_SCHEME
 from util import timeframe_to_resample_freq
 logger = logging.getLogger(__name__)

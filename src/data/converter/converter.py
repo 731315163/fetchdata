@@ -11,7 +11,7 @@ from polars import DataFrame
 
 from util import timeframe_to_seconds
 from typenums.constants import DEFAULT_DATAFRAME_COLUMNS, Config
-from typenums.timerange import TimeRange
+from data.timerange import TimeRange
 from typenums import CandleType, TradingMode,TRADES_SCHEME,CANDLES_SCHEME
 from util import timeframe_to_resample_freq
 

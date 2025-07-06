@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 import ccxt.async_support as ccxt_async
 import polars as pl
 import data
-from typenums import CandleType, MarketType
+from typenums import CandleType, MarketType,TimeStamp
 from .protocol import DataRecoder,DataType,TRADES_SCHEME,CANDLES_SCHEME,DataKey
 from .dataframe_recoder import DataFrameRecoder
 
@@ -38,7 +38,7 @@ class DataCache[T](dict[DataKey,DataRecoder[T]]):
         # self.trades_lock = asyncio.Lock()
     def set_cache_time(self,key ,timedeta: timedelta):
         if key in self:
-            self[key].timeout = timedeta
+            self[key].timeout = timedeta.total_seconds()
         else:
             raise KeyError(f"{key} not found in cache")
 
@@ -98,11 +98,13 @@ class DataframeCache(DataCache[DataFrame]):
         return cache
        
     def convert(self,data,datatype:DataType)->DataFrame:
+        if isinstance(data,DataFrame): return data
         match datatype:
             case "trades":
                 schema  = TRADES_SCHEME
             case _:
                 schema = CANDLES_SCHEME
+        
         df= DataFrame(data,schema=schema)
         return df
 
