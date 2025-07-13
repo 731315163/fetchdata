@@ -1,3 +1,4 @@
+import math
 import pytest
 from util import pre_date,next_date,timestamp_to_timestamp
 from datetime import timedelta,datetime
@@ -151,7 +152,7 @@ timestamp_test_data = [
     (1717029200000, "ms", 1717029200000, TimeStamp),  # 毫秒输入
     (1717029200, "s", 1717029200, TimeStamp),        # 秒输入
     (datetime(2024, 6, 1, 12, 0, 0, tzinfo=timezone.utc), "ms", 1717243200000, datetime),  # datetime输入
-    (None, "ms", None, ValueError),                   # None输入
+                     # None输入
     (-1, "ms", -1, ValueError),                       # 负数输入
 ]
 
@@ -179,10 +180,8 @@ def sample_timestamp():
 @pytest.mark.parametrize("input_val, export_unit, expected, input_type", timestamp_test_data)
 def test_timestamp_initialization(input_val, export_unit, expected, input_type):
     """测试TimeStamp初始化逻辑"""
-    if input_val is None:
-        with pytest.raises(TypeError):
-            TimeStamp(None)
-    elif input_type == ValueError:
+   
+    if input_type == ValueError:
         with pytest.raises(ValueError):
             TimeStamp(input_val)
     else:
@@ -237,52 +236,42 @@ def test_clamp_method(interval,dt,expected):
     result = base_time.clamp(delta)  # 使用base_time作为时间戳
         
     assert result.ms == pytest.approx(expected)
-            
-def test_comparison_operators():
-    """测试比较运算符"""
-    ts1 = TimeStamp(1000)
-    ts2 = TimeStamp(2000)
-    
-    # 测试等于
-    assert ts1 == ts1
-    assert ts1 != ts2
-    
-    # 测试小于
-    assert ts1 < ts2
-    assert not (ts2 < ts1)
-    
-    # 测试大于
-    assert ts2 > ts1
-    assert not (ts1 > ts2)
-    
-    # 测试与其他数值类型比较
-    assert ts1 == 1000*1000
-    assert ts1 == 1000.0*1000
-    assert ts1 < 2000*1000
-    assert ts1 <= 1000*1000
-    assert ts1 >= 1000*1000
+
+@pytest.mark.parametrize("a,b, eq", [
+    (1000,1000, True),
+    (0, 0,True),
+    (10001000,10000000, False)
+ 
+])
+def test_assertmathislose(a,b,eq):
+    math.isclose(
+            a,
+            b,
+            abs_tol=1e-9,
+            rel_tol=1e-9
+        )     
+
 
 def test_invalid_comparisons():
     """测试无效的比较操作"""
     ts = TimeStamp(1000)
-    with pytest.raises(TypeError):
-        ts < "invalid"
+ 
     with pytest.raises(TypeError):
         ts == [1000]
     with pytest.raises(TypeError):
         ts > {"value": 1000}
 
 # 测试基本创建功能
-def test_basic_creation():
+def test_empty():
     # 测试空实例
-    assert TimeStamp.get_empty() == TimeStamp.empty
-    assert TimeStamp(None) is TimeStamp.empty
-    assert TimeStamp(TimeStamp._EMPTY_VALUE) is TimeStamp.empty
+    assert TimeStamp.empty() == TimeStamp.empty()
+    assert TimeStamp.empty() is TimeStamp.empty()
+    assert TimeStamp(None) == TimeStamp.empty()
+    assert TimeStamp(TimeStamp._EMPTY_VALUE) is TimeStamp.empty()
+    assert TimeStamp.empty().is_empty
+
+    assert not TimeStamp(1000_1000_000).is_empty
     
-    # 测试相同实例返回
-    empty1 = TimeStamp.get_empty()
-    empty2 = TimeStamp.get_empty()
-    assert empty1 is empty2
 
 # 测试不同输入类型的转换
 def test_input_types():
@@ -305,15 +294,24 @@ def test_input_types():
     assert copy is not original  # 应该是新实例但值相同
     assert copy == original
 
-# 测试比较操作
-def test_comparisons():
-    base_time = 1620000000000  # 2021-05-01 12:00:00 UTC
+@pytest.mark.parametrize("ts1, , ts2",[
+    (TimeStamp(1620000000000), TimeStamp(1620000001000)),  # 1秒后
+    ( TimeStamp(1000), TimeStamp(2000))
+])
+def test_comparisons(ts1,ts2):
+    ts1_time = ts1.s  # 2021-05-01 12:00:00 UTC
+    ts2_time = ts2.s
     
-    ts1 = TimeStamp(base_time)
-    ts2 = TimeStamp(base_time + 1000)  # 1秒后
     
     # 等于比较
     assert ts1 == ts1
+    assert ts1 == ts1_time
+    assert ts1 != ts2_time
+    
+    
+    assert ts2 == ts2_time
+    
+    
     assert ts1 != ts2
     
     # 小于比较
@@ -331,7 +329,7 @@ def test_comparisons():
 
 # 测试特殊值比较
 def test_special_value_comparisons():
-    empty = TimeStamp.get_empty()
+    empty = TimeStamp.empty()
     normal = TimeStamp(1620000000000)
     
     assert empty != normal

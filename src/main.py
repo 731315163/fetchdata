@@ -1,15 +1,20 @@
-import ccxt.pro as ccxtpro
 from asyncio import run
-
-async def main():
-    exchange = ccxtpro.kraken({'newUpdates': False})
-    while True:
-        orderbook = await exchange.watch_order_book('BTC/USD')
-        print(orderbook['asks'][0], orderbook['bids'][0])
-    await exchange.close()
-
+from asyncio.log import logger
+from fetchdata import Server
+async def main(address:str, config):
+    server = Server(address,config)    
+    await server.start()
+    try :
+        while True:
+            await server.recv()
+    except Exception as e:
+        logger.info("Server stopped")        
+    await server.recv()      
+    
 
 
 
 if __name__ == '__main__':
-    run(main())
+    from argparse import ArgumentParser
+    
+    run(main("",{}))

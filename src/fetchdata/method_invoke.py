@@ -1,16 +1,21 @@
 
 
+import logging
 
+from google.protobuf.json_format import ParseDict
+
+from .message.google.protobuf.struct_pb2 import Struct
+from .message.methodid_pb2 import InvokeMethod, MethodID
+from exchange import ExchangeABC 
+
+
+# from exceptions import *  
+from typenums import MarketType
 
 from typing import cast
-from exchange import ExchangeProtocol
-from collections.abc import Callable
-from enum import Enum
-from fetchdata.message.google.protobuf.struct_pb2 import Struct,Value
-from .message.methodid_pb2 import MethodID,InvokeMethod
-from typenums import MarketType
+from fetchdata.message.google.protobuf.struct_pb2 import Struct
   
-async def invoke_method(invoke_method: InvokeMethod,ex:ExchangeProtocol)  :
+async def invoke_method(invoke_method: InvokeMethod,ex:ExchangeABC)  :
     
     method,params = invoke_method.method_id,invoke_method.params
     para = params.fields
@@ -30,4 +35,13 @@ async def invoke_method(invoke_method: InvokeMethod,ex:ExchangeProtocol)  :
              return await ex.trades(symbol=symbol,since=since,marketType=marktype) 
         case _:
             return None
-            
+
+
+
+
+def create_invoke_method( method_id: MethodID, params: dict) -> InvokeMethod:
+          # Convert dict to protobuf Struct
+        struct = Struct()
+        ParseDict(js_dict=params, message=struct)
+        invoke = InvokeMethod(method_id=method_id, params=struct)   # type: ignore
+        return invoke

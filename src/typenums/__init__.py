@@ -20,6 +20,7 @@ from .signaltype import SignalDirection, SignalTagType, SignalType
 from .state import State
 from .tradingmode import TradingMode
 from .timestamp import TimeStamp
+from .Literal import TimeFrame
 
 
 

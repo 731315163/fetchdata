@@ -1,27 +1,38 @@
-import asyncio
-from datetime import datetime, timedelta, timezone
 import logging
-from polars import DataFrame, LazyFrame
-from data.protocol import DataRecoder,DataKey
-import polars as pl
-import pyarrow as pa
-from typenums import MarketType, DataType
+from datetime import datetime, timedelta, timezone
+from typing import MutableSequence, Sequence
 
+import polars as pl
+from polars import DataFrame, LazyFrame
+
+from data.protocol import DataKey, DataRecoder
+from typenums import DataType, MarketType
 
 logger = logging.getLogger(__name__)
 
 class DataFrameRecoder(DataRecoder[DataFrame]):
+    
+    
 
+    @staticmethod
+    def Empty() -> DataFrame:
+        return DataFrame()
     def __init__(self, pair: str, marketType: MarketType, datatype: DataType, timeframe="", data: DataFrame | None = None, timeout: timedelta = timedelta(minutes=10)):
         self.data= DataFrame() if data is None else data
 
         super().__init__(pair=pair, marketType=marketType, datatype=datatype, timeframe=timeframe)
         self.timeout = timeout.microseconds
         self.timekey = "timestamp"
+        
 
+    @property
+    def is_empty(self) -> bool:
+        return self.data.is_empty()
+     
 
-    
-
+    @property
+    def empty(self)->DataFrame:
+         return DataFrame()
     def append(self, data: DataFrame, dt: datetime | int | float | None = None):
      
 
@@ -64,11 +75,9 @@ class DataFrameRecoder(DataRecoder[DataFrame]):
         if self.data.is_empty():
             self.data = data
         else:
-            if len(self.data.columns) != len(data.columns):
-                missing_cols = set(self.data.columns) - set(data.columns)
-                extra_cols = set(data.columns) - set(self.data.columns)
-                raise ValueError(f"前置数据的列不匹配: 缺少 {missing_cols}, 多出 {extra_cols}")
-        self.data = pl.concat([data, self.data])
+            self.data = pl.concat([data, self.data])
+       
+            
 
 
 
@@ -113,9 +122,27 @@ class DataFrameRecoder(DataRecoder[DataFrame]):
             # 记录错误但继续运行
             logger.error(f"警告: 修剪过期数据时出错: {e}")
 
-    def __getitem__(self, index)->pa.Table:
+    def __getitem__(self, index)->DataFrame:
         """支持索引访问和切片"""
-        return self.data[index,:].to_arrow()
-      
+        lazy_df = self.data.lazy()  # 转换为惰性Frame
+        start = None
+        end =None
+        if isinstance(index, slice):
+        # 处理切片：假设start/end为时间戳
+            start,end = index.start ,index.stop
+        elif isinstance(index, (int,float)) :
+            start = index
+        elif isinstance(index, (tuple,Sequence,MutableSequence)) and len(index)>0:
+            start = index[0]
+            if len(index) >= 2:
+                end = index[1]
+                
+            
+        if start is not None:
+            lazy_df = lazy_df.filter(pl.col(self.timekey) >= start)
+        if end is not None:
+            lazy_df = lazy_df.filter(pl.col(self.timekey) <= end)
+        df = lazy_df.collect()  # 一次性触发执行
+        return df
     def __len__(self) -> int:
-        return len(self.data)
+        return self.data.height

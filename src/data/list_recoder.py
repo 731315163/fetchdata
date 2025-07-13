@@ -1,73 +1,83 @@
 
+
 from datetime import datetime, timedelta, timezone
-import logging
-from polars import DataFrame
+from typing import List, Any
 from data.protocol import DataRecoder
+from typenums import DataType, MarketType
 
-import pyarrow as arrow
-from collections import OrderedDict
-from typenums import MarketType,DataType
-
-
-
-class ListDataRecoder(DataRecoder[list[list]]):
-    def __init__(self, pair: str, marketType: MarketType, datatype: DataType, timeframe="", timeout: timedelta = timedelta(minutes=10)):
-         
-        self.first_datetime =0
-        self.last_datetime = 0
-        self.lazyfront = []
-        self.rear = []
-        super().__init__(pair=pair, marketType=marketType, datatype=datatype, timeframe=timeframe)
-        self.timeout = timeout
-        self.timekey = "timestamp"
-
-
-
-    def normalize_datetime(self, dt: datetime | int | float | None) -> datetime | None:
-        """将不同类型的时间表示转换为datetime对象"""
-        if dt is None:
-            return None
-        if isinstance(dt, (int, float)):
-            # 根据时间戳长度判断单位
-            timestamp = float(dt)
-            if timestamp > 1e15:  # 纳秒 (16-19位)
-                timestamp /= 1e9
-            elif timestamp > 1e12:  # 微秒 (13-16位)
-                timestamp /= 1e6
-            elif timestamp > 1e9:   # 毫秒 (10-13位)
-                timestamp /= 1000
-            # 秒级时间戳 (9-10位)
-            return datetime.fromtimestamp(timestamp, tz=timezone.utc)
-        # 确保datetime对象有时区信息
-        if dt.tzinfo is None:
-            return dt.replace(tzinfo=timezone.utc)
-        return dt
-
-    def append(self, data:list[list], dt: datetime | int | float | None = None):
-     
-        self.rear.extend(data)
-        self.last_datetime = self.normalize_datetime(dt)
-     
-           
+class ListDataRecoder(DataRecoder[list]):
+    @staticmethod
+    def Empty() -> list:
+        return []
+    
+    @property
+    def empty(self) -> list:
+        return ListDataRecoder.Empty()
+    
+    def __init__(self, pair: str, marketType: MarketType, datatype: DataType, timeframe="", 
+                data: List[list] | None = None, timeout: timedelta = timedelta(minutes=10)):
+        self.data = [] if data is None else data
+        super().__init__(pair=pair, marketType=marketType, datatype=datatype, 
+                        timeframe=timeframe, timeout_ms=timeout)
+        self.timekey = "timestamp"  # 保留接口一致性
+    
+    @property
+    def is_empty(self) -> bool:
+        return len(self.data) == 0
+    
+    def append(self, data: List[list], dt: datetime | int | float | None = None):
+        if not data:
+            return
+            
+        # 如果提供了时间，则更新时间列（需要自定义逻辑）
+        if dt is not None:
+            # 添加时间处理逻辑（示例：假设时间戳在索引0位置）
+            for item in data:
+                if isinstance(item, list):
+                    item[0] = int(dt.timestamp() * 1000)  # 替换为实际索引
         
-
-     
-
-    def prepend(self, data:list[list], dt: datetime | int | float | None = None):
-        """向数据记录器前置数据"""
-        self.lazyfront.append(data)
-        self.data = data
-       
-
-
-    def prune_expired_data(self, td: timedelta | int | float | None = None):
+        self.data.extend(data)
+    
+    def prepend(self, data: List[list], dt: datetime | int | float | None = None):
+        if not data:
+            return
+            
+        # 如果提供了时间，则更新时间列
+        if dt is not None:
+            # 添加时间处理逻辑（示例：假设时间戳在索引0位置）
+            for item in data:
+                if isinstance(item, list):
+                    item[0] = int(dt.timestamp() * 1000)  # 替换为实际索引
+                    
+        self.data = data + self.data
+    
+    def prune_expired_data(self, td: timedelta | int | None = None):
         """删除超时的数据"""
-        ...
-
-    def __getitem__(self, index):
+        if self.is_empty:
+            return
+            
+        # 计算截止时间（微秒）
+        cutoff = int((datetime.now(timezone.utc).timestamp() - self.timeout / 1e6) * 1e6)
         
+        # 假设每个列表项的第一个元素是时间戳（毫秒）
+        self.data = [item for item in self.data 
+                    if item[0] >= cutoff]  # 根据实际索引调整
+    
+    def __getitem__(self, index) -> list:
         """支持索引访问和切片"""
-        ...
-      
+        if isinstance(index, slice):
+            start = index.start
+            end = index.stop
+            return [item for item in self.data 
+                   if (start is None or item[0] >= start) and  # 根据实际索引调整
+                   (end is None or item[0] <= end)]
+        
+        elif isinstance(index, (int, float)):
+            # 按时间戳查找（示例实现）
+            return [item for item in self.data 
+                   if item[0] == index]  # 根据实际索引调整
+            
+        return []
+    
     def __len__(self) -> int:
         return len(self.data)

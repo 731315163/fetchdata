@@ -1,17 +1,19 @@
 
 
-from typing import Any, cast
 
-from ccxt.static_dependencies.ecdsa import der
+
+import polars as pl
+import pyarrow as pa
 from communication.zeromq.factory import Factory
-from google.protobuf.message import Message
 
-from exchange import ExchangeProtocol
-from exchange.exchange_factory import ExchangeFactory,Exchange,ExchangeConifg
+from exchange.exchange_factory import ExchangeFactory
 
-from .message.google.protobuf.struct_pb2 import Struct
-from .message.methodid_pb2 import InvokeMethod, MethodID
-from .method_invoke import MethodID, invoke_method
+from .message.methodid_pb2 import InvokeMethod
+from .method_invoke import invoke_method
+from data.serialize import serialize_dataframe,deserialize_dataframe
+
+
+
 
 
 class Server():
@@ -25,10 +27,19 @@ class Server():
     @staticmethod
     def deserialize(data:bytes)-> InvokeMethod:
         return InvokeMethod.FromString(data)
+ 
     async def recv(self):
-        await self.exchange.update()
         invokemsg: InvokeMethod  = await self.server.recv(deserializer=Server.deserialize)
         response = await invoke_method(invoke_method=invokemsg,ex=self.exchange)
-        if response is None: return
-        await self.server.send(message=response)
-        
+        if response is None:
+            return
+        await self.server.send(message=response,serializer=serialize_dataframe)
+
+
+
+
+
+
+
+
+    

@@ -3,20 +3,17 @@
 
 
 import asyncio
-import logging
-from datetime import datetime, timedelta, timezone, tzinfo
+from datetime import datetime, timedelta, timezone
 from time import time
 
 # tests/conftest.py
 # tests/test_exchange_functionality.py
-from polars import DataFrame
 import pytest
 from ccxt.base.types import Trade
 import pyarrow as pa
-from exchange import CCXTExchangeFactory, ExchangeProtocol,ExchangeFactory
-from exchange.exchange import Exchange,DataKey
+from exchange import CCXTExchangeFactory, ExchangeFactory
+from exchange.exchange import DataKey
 from exchange.protocol import CCXTExchangeProtocol
-from typenums import DataType, MarketType, State  
 
 
 def get_exchange(exchange_name: str="binance", config={}) -> CCXTExchangeProtocol:
@@ -76,15 +73,14 @@ def data_key():
 @pytest.mark.asyncio
 async def test_fetch_trades_success(exchange):
     # 测试正常获取交易数据
-    dt = datetime.now(timezone.utc) 
-    dt_int = int(dt.timestamp() * 1000)
-    exchange.set_since(data_key, dt,timedelta(minutes=1))
+    dt_int = int(datetime.now(timezone.utc).timestamp() )* 1000
+    exchange.set_since(data_key, dt_int,timedelta(minutes=1))
     await exchange.update()
-    data = await exchange.trades(symbol="BTC/USDT", since=dt)
+    data = await exchange.trades(symbol="BTC/USDT", since=dt_int)
     
     assert data is None
     await exchange.update()
-    data = await exchange.trades(symbol="BTC/USDT", since=dt)
+    data = await exchange.trades(symbol="BTC/USDT", since=dt_int)
     assert len(data) > 0
     assert isinstance(data, pa.Table)    
 

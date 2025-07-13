@@ -6,7 +6,6 @@
 
 import math
 from datetime import datetime, timedelta, timezone
-from types import UnionType
 from typing import Any, Literal, Self, Union
 
 
@@ -16,41 +15,43 @@ class TimeStamp(float):
     """
 
      
-    # 定义特殊的空时间戳值，使用不可能的时间戳
-    _EMPTY_VALUE = float('inf')
+     # 定义特殊的空时间戳值，使用不可能的时间戳
+    _EMPTY_VALUE = math.nan
     
     # 私有类变量存储空实例
     _empty_instance = None
     
     @classmethod
-    def get_empty(cls) -> 'TimeStamp':
+    def empty(cls) -> 'TimeStamp':
         """获取空时间戳实例（单例）"""
         if cls._empty_instance is None:
             cls._empty_instance = super().__new__(cls, cls._EMPTY_VALUE)
         return cls._empty_instance
     
-    # 使用类属性替代property
-    @property
-    def empty(cls) -> 'TimeStamp':
-        return cls.get_empty()
+    # 将empty改为类属性，直接引用单例实例
+     # 使用property延迟初始化empty，避免类加载时的错误
     
     @property
     def is_empty(self) -> bool:
         """检查是否为空时间戳"""
-        return self ==TimeStamp.empty
-    def __new__(cls, timestamp:  float| int|datetime):
+        return math.isnan( self )
+    
+    def __new__(cls, timestamp: float | int | datetime):
         # Convert different input types to timestamp in milliseconds
-      
-      
-        if timestamp is None or timestamp == cls._EMPTY_VALUE:
-            return cls.get_empty()
+        if timestamp is None:
+            return cls.empty()
+        if  isinstance(timestamp, (float, int)) and (math.isnan(timestamp)or math.isinf(timestamp)or timestamp < 0):
+            return cls.empty()
+        
         if isinstance(timestamp, TimeStamp):
             ms = timestamp.ms
         else:
             if isinstance(timestamp, datetime):
                 ts = timestamp.timestamp() * 1000  # Convert to milliseconds
-            elif isinstance(timestamp, (float,int)):
+            elif isinstance(timestamp, (float, int)):
                 ts = timestamp
+            else:
+                raise TypeError("Invalid timestamp type")
             ms = cls.timestamp_to_timestamp(ts, unit="ms")
         return super().__new__(cls, ms)
        
@@ -112,7 +113,7 @@ class TimeStamp(float):
             return int(result)
         return result
 
-    def clamp(self, delta: timedelta) -> 'TimeStamp':
+    def clamp(self, delta: timedelta|int|float) -> 'TimeStamp':
         """
         根据给定时间间隔为正数向上取整数值 ，为负数向下取整以秒为单位
         
@@ -123,7 +124,7 @@ class TimeStamp(float):
         Returns:
             向上取整后的数值（interval的整数倍）
         """
-        interval = delta.total_seconds()*1000
+        interval = delta.total_seconds()*1000 if isinstance(delta, timedelta) else delta
         timestamp = self 
         if interval == 0:
             return timestamp  # 无效间隔直接返回原值
@@ -153,30 +154,32 @@ class TimeStamp(float):
     def  _eq_(self, ms):
      
         return math.isclose(
-            self.ms,
-            ms,
-            abs_tol=1e-9,
-            rel_tol=1e-9
+            self.ms-ms,
+            0,
+            abs_tol=1e-13,
+           # rel_tol=1e-9
         )
 
     def _get_ms(self,other)->float:
         if isinstance(other, TimeStamp):
             ms = other.ms
         elif isinstance(other, (int, float)):
-            ms = TimeStamp.timestamp_to_timestamp( timestamp=other,unit="ms")
+            ms = TimeStamp.timestamp_to_timestamp(timestamp=other,unit="ms")
         else:
-            ms=float('inf')
+            raise TypeError(f"Invalid timestamp type:{type(other)}")
         return ms
 
     def __eq__(self, other):
-      
+        if  isinstance(other, TimeStamp) and  self.is_empty and other.is_empty:
+            return True
         ms = self._get_ms(other)
         return self._eq_(ms)
 
     def __lt__(self, other):
 
         ms = self._get_ms(other)
-        if ms == float('inf'):
+        if ms == float('inf') or  math.isnan(ms):
+            
             return NotImplemented    
         if not self._eq_(ms) and self.ms < ms:
             return True
@@ -267,7 +270,7 @@ class TimeStamp(float):
             
     #     return NotImplemented
     
-    def __mul__(self, other: Union[int, float]) -> 'TimeStamp':
+    def __mul__(self, other: int| float) -> 'TimeStamp':
         """乘法运算：TimeStamp * 数值"""
         if self.is_empty:
             return self
@@ -278,7 +281,7 @@ class TimeStamp(float):
             
         return NotImplemented
     
-    def __rmul__(self, other: Union[int, float]) -> 'TimeStamp':
+    def __rmul__(self, other: int| float) -> 'TimeStamp':
         """反向乘法：数值 * TimeStamp"""
         return self.__mul__(other)
     

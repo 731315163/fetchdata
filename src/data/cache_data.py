@@ -1,19 +1,21 @@
-from abc import ABC, abstractmethod
 import asyncio
 import logging
 import time
-from typing import Literal, TypeVar, overload
-from ccxt import abstract
-from polars import DataFrame
+from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
+from typing import Literal, TypeVar, overload
+
 import ccxt.async_support as ccxt_async
 import polars as pl
-import data
-from typenums import CandleType, MarketType,TimeStamp
-from .protocol import DataRecoder,DataType,TRADES_SCHEME,CANDLES_SCHEME,DataKey
-from .dataframe_recoder import DataFrameRecoder
+from ccxt import abstract
+from polars import DataFrame
 
-        
+import data
+from typenums import CANDLES_SCHEME, TRADES_SCHEME, CandleType, MarketType, TimeStamp
+
+from .dataframe_recoder import DataFrameRecoder
+from .protocol import DataKey, DataRecoder, DataType
+
 
 class DataCache[T](dict[DataKey,DataRecoder[T]]):
     def __init__(self, exchange_id='',exchange_name=''):
@@ -69,7 +71,14 @@ class DataCache[T](dict[DataKey,DataRecoder[T]]):
 
     @abstractmethod
     def convert(self,data,datatype)->T:...
-    
+    @abstractmethod
+    def empty(self)->T:...
+    @staticmethod
+    @abstractmethod
+    def Empty()->T:...
+
+        
+        
     def append(self,key:DataKey, data,dt:datetime|int|None=None):
         pair,timeframe,marketType,datatype = key
         convert_data = self.convert(data,datatype=datatype)
@@ -112,7 +121,11 @@ class DataframeCache(DataCache[DataFrame]):
         first  = data[0,0]
         last = data[-1,0]
         return first,last
-
+    def empty(self)->DataFrame:
+        return DataFrameRecoder.Empty()
+    @staticmethod
+    def Empty()->DataFrame:
+        return DataFrameRecoder.Empty()
 
 class CacheFactory():
 

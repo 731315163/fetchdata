@@ -10,6 +10,8 @@ enum MethodID {
   EXCHANGE = 1;
   // 市场信息接口
   MARKET = 2;
+  //Update
+  UPDATE_MARKET = 3;
   
   // 行情数据接口
   OHLCV = 10;

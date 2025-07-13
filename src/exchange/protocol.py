@@ -6,20 +6,57 @@
 
 # import functools
 
-from datetime import datetime
+
+from abc import ABC, abstractmethod
+from typing import ClassVar, Protocol
+
 from ccxt.base.decimal_to_precision import DECIMAL_PLACES, NO_PADDING
-from ccxt.base.types import (Any, Balances, BorrowInterest, Conversion,
-                             CrossBorrowRate, Currencies, DepositAddress,
-                             FundingRate, FundingRates, Greeks, Int,
-                             IsolatedBorrowRate, IsolatedBorrowRates,
-                             LedgerEntry, Leverages, LeverageTiers,
-                             LongShortRatio, MarginMode, MarginModes,
-                             MarginModification, Market, MarketInterface,
-                             MarketType, Num, Option, Order, OrderBook,
-                             OrderRequest, OrderSide, OrderType, Position, Str,
-                             Strings, Ticker, Tickers, Trade,
-                             TradingFeeInterface, TradingFees, Transaction,
-                             TransferEntry)
+from ccxt.base.types import (
+    Any,
+    Balances,
+    BorrowInterest,
+    Conversion,
+    CrossBorrowRate,
+    Currencies,
+    DepositAddress,
+    FundingRate,
+    FundingRates,
+    Greeks,
+    Int,
+    IsolatedBorrowRate,
+    IsolatedBorrowRates,
+    LedgerEntry,
+    Leverages,
+    LeverageTiers,
+    Liquidation,
+    LongShortRatio,
+    MarginMode,
+    MarginModes,
+    MarginModification,
+    Market,
+    MarketInterface,
+    MarketType,
+    Num,
+    Option,
+    Order,
+    OrderBook,
+    OrderRequest,
+    OrderSide,
+    OrderType,
+    Position,
+    Str,
+    Strings,
+    Ticker,
+    Tickers,
+    Trade,
+    TradingFeeInterface,
+    TradingFees,
+    Transaction,
+    TransferEntry,
+)
+
+from typenums import MarketType
+from typenums.Literal import TimeFrame
 
 # ecdsa signing
 # eth signing
@@ -33,35 +70,26 @@ try:
     import orjson as orjson
 except ImportError:
     pass
-from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Protocol
-
-from ccxt.base.types import (Any, Balances, Int, Liquidation, Num, Order,
-                             OrderBook, OrderSide, OrderType, Position, Str,
-                             Strings, Ticker, Tickers, Trade)
-
-from typenums import MarketType
-from typenums.Literal import TimeFrame
 
 
-class ExchangeProtocol(ABC):
+class ExchangeABC[T](ABC):
   
-     
+    
     @abstractmethod
-    def un_watch_trades(self,pair:str,until:float|int,marketType: MarketType = "future" ) -> None:...
+    async def un_watch_trades(self,pair:str,until:float|int,marketType: MarketType = "future" ) -> None:...
    
     @abstractmethod
-    def un_watch_ohlcv(self,pair:str,timeframe:TimeFrame,until:float|int,marketType: MarketType = "future") -> None:...
+    async def un_watch_ohlcv(self,pair:str,timeframe:TimeFrame,until:float|int,marketType: MarketType = "future") -> None:...
     @abstractmethod   
     async def update(self) -> None:...
     @abstractmethod
-    async def trades(self, symbol: str, since:float|int,marketType: MarketType = "future", wait_full_data = True, limit=None, params=None):...
+    async def trades(self, symbol: str, since:float|int,marketType: MarketType = "future", wait_full_data = True, limit=None, params=None)->T:...
      
     @abstractmethod
-    async def ohlcv(self, symbol: str,timeframe: str, since:float|int,marketType: MarketType = "future",wait_full_data = True,limit=None,  params=None):...
+    async def ohlcv(self, symbol: str,timeframe: str, since:float|int,marketType: MarketType = "future",wait_full_data = True,limit=None,  params=None)->T:...
 
     @abstractmethod
-    async def tickers(self, symbol:str, since:float|int,marketType: MarketType = "future",wait_full_data = True,limit=None,  params=None):...
+    async def tickers(self, symbol:str, since:float|int,marketType: MarketType = "future",wait_full_data = True,limit=None,  params=None)->T:...
 # 定义交易所协议，描述交易所类应具备的基本接口
 class CCXTExchangeProtocol(Protocol):
 # -*- coding: utf-8 -*-

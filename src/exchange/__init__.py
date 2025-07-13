@@ -1,9 +1,9 @@
 from .exchange_factory import ExchangeFactory
 from .ccxtexchange_factory import CCXTExchangeFactory,ExchangeConifg
-from .protocol import CCXTExchangeProtocol, ExchangeProtocol
+from .protocol import CCXTExchangeProtocol, ExchangeABC
 
 __all__ = [
-    "ExchangeProtocol",
+    "ExchangeABC",
     "CCXTExchangeFactory",
     "CCXTExchangeProtocol",
     "ExchangeFactory",

@@ -15,7 +15,7 @@ from data.converter import (
 from data.history.datahandlers import IDataHandler, get_datahandler
 from typenums import CandleType, TradingMode,TimeRange
 from exceptions import OperationalException
-from exchange import ExchangeProtocol
+from exchange import ExchangeABC
 from plugins.pairlist.pairlist_helpers import dynamic_expand_pairlist
 from util import dt_now, dt_ts, format_ms_time, format_ms_time_det
 from util.migrations import migrate_data
@@ -129,7 +129,7 @@ def refresh_data(
     datadir: Path,
     timeframe: str,
     pairs: list[str],
-    exchange: ExchangeProtocol,
+    exchange: ExchangeABC,
     data_format: str | None = None,
     timerange: TimeRange | None = None,
     candle_type: CandleType,
@@ -217,7 +217,7 @@ def _download_pair_history(
     pair: str,
     *,
     datadir: Path,
-    exchange: ExchangeProtocol,
+    exchange: ExchangeABC,
     timeframe: str = "5m",
     new_pairs_days: int = 30,
     data_handler: IDataHandler | None = None,
@@ -318,7 +318,7 @@ def _download_pair_history(
 
 
 def refresh_backtest_ohlcv_data(
-    exchange: ExchangeProtocol,
+    exchange: ExchangeABC,
     pairs: list[str],
     timeframes: list[str],
     datadir: Path,
@@ -404,7 +404,7 @@ def refresh_backtest_ohlcv_data(
 
 
 def _download_trades_history(
-    exchange: ExchangeProtocol,
+    exchange: ExchangeABC,
     pair: str,
     *,
     new_pairs_days: int = 30,
@@ -486,7 +486,7 @@ def _download_trades_history(
 
 
 def refresh_backtest_trades_data(
-    exchange: ExchangeProtocol,
+    exchange: ExchangeABC,
     pairs: list[str],
     datadir: Path,
     timerange: TimeRange,
@@ -594,7 +594,7 @@ def validate_backtest_data(
 
 def download_data(
     config: Config,
-    exchange: ExchangeProtocol,
+    exchange: ExchangeABC,
     *,
     progress_tracker: CustomProgress | None = None,
 ) -> None:

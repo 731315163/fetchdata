@@ -1,14 +1,12 @@
 
 from abc import ABC, abstractmethod
 from collections import namedtuple
-from datetime import datetime, timedelta, timezone
-import time
-from typing import Literal
-import logging
+from datetime import datetime, timedelta
 
-from polars import date
-from typenums import MarketType,TRADES_SCHEME,CANDLES_SCHEME,DataType,State, TimeStamp
 import pyarrow as pa
+
+from typenums import DataType, MarketType, State, TimeStamp
+
 DataKey = namedtuple('DataKey', ['pair', 'timeframe', 'marketType', 'datatype'])
 
 class DataRecoder[T](ABC):
@@ -27,9 +25,16 @@ class DataRecoder[T](ABC):
     def key (self):
             key = DataKey(self.pair,self.timeframe,self.marketType,self.datatype)
             return key
-  
-    
+    @property
+    @abstractmethod
+    def is_empty(self)->bool:...
 
+    @property
+    @abstractmethod
+    def empty(self)->T:...
+    @staticmethod
+    @abstractmethod
+    def Empty()->T:...
     @abstractmethod
     def append(self, data:T,dt:datetime|int|None=None):...
     @abstractmethod
@@ -42,7 +47,7 @@ class DataRecoder[T](ABC):
         """删除超时的数据"""
         ...
     @abstractmethod
-    def __getitem__(self, index)->pa.Table:
+    def __getitem__(self, index)->T:
         """支持索引访问和切片"""
         ...
     @abstractmethod  

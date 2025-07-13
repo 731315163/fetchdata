@@ -2,11 +2,11 @@ import asyncio
 import logging
 from collections.abc import Callable
 from datetime import timedelta
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, TypeVar
 
 
 from data import CacheFactory, DataKey
-from exceptions import *
+# from exceptions import *  
 from typenums import MarketType, State,TimeStamp
 from typenums.Literal import TimeFrame
 from util import (clamp, dt_now, timeframe_to_seconds,
@@ -14,14 +14,14 @@ from util import (clamp, dt_now, timeframe_to_seconds,
 
 from .ccxtexchange_factory import CCXTExchangeFactory
 from .protocol import CCXTExchangeProtocol
-from .protocol import ExchangeProtocol as EX
-
+from .protocol import ExchangeABC 
+from polars import DataFrame
 logger = logging.getLogger(__name__)
 
 
 TimeMarkerMinGap= NamedTuple("TimeMarkerMinGap", [("time_marker", TimeStamp),("internal", timedelta) ])
-
-class Exchange(EX):
+T= TypeVar("T", bound=DataFrame|list)
+class Exchange[T](ExchangeABC[T]):
 
     def __init__(self, exchange_name:str="", config:dict={}) :
         # self.lock = asyncio.Lock()
@@ -38,7 +38,7 @@ class Exchange(EX):
         # self.cache_lock= asyncio.Lock()
         self.cache = CacheFactory.get(exchange_id=self.exchange.name)
         self.data_internal_ratio = 10
-        self. rateLimit=self.exchange.rateLimit
+        self.rateLimit=self.exchange.rateLimit
     
         
     def set_since(self,key:DataKey,since:float|int,internal:timedelta|str) -> None:
@@ -55,15 +55,16 @@ class Exchange(EX):
   
    
 
-    def un_watch_trades(self,pair:str,until:float|int,marketType: MarketType = "future" ) -> None:
+    async def un_watch_trades(self,pair:str,until:float|int,marketType: MarketType = "future" ) -> None:
          key = DataKey(pair=pair,timeframe="",marketType=marketType,datatype="trades")
          self.set_until(key=key,until=until,internal=timedelta(minutes=1))
 
-    def un_watch_ohlcv(self,pair:str,timeframe:TimeFrame,until:float|int,marketType: MarketType = "future") -> None:
+    async def un_watch_ohlcv(self,pair:str,timeframe:TimeFrame,until:float|int,marketType: MarketType = "future") -> None:
         key = DataKey(pair=pair,timeframe=timeframe,marketType=marketType,datatype="ohlcv")
         self.set_until(key=key,until=until,internal=timeframe)
     async def update(self) -> None:
-        """后台任务，持续更新最新的交易数据"""
+        """请无限循环运行该函数
+        持续更新最新的交易数据"""
         try:
             
             # 先处理需要停止的until数据
@@ -98,22 +99,18 @@ class Exchange(EX):
             
         # 统一处理DataKey和tuple格式的key
        
-        pair = key.pair
-        timeframe = key.timeframe
-        marketType = key.marketType
-        datatype = key.datatype
       
             
         try:
-            if datatype == "trades":
+            if key.datatype == "trades":
                 # 停止交易数据流的逻辑
-                await self.exchange.un_watch_trades(pair)
-            elif datatype == "ohlcv":
+                await self.exchange.un_watch_trades(key.pair)
+            elif key.datatype == "ohlcv":
                 # 停止K线数据流的逻辑
-                await self.exchange.un_watch_ohlcv(pair, timeframe)
+                await self.exchange.un_watch_ohlcv(key.pair, key.timeframe)
             # 添加其他数据类型的处理
             else:
-                logger.warning(f"Unsupported data type for unwatch: {datatype}")
+                logger.warning(f"Unsupported data type for unwatch: {key.datatype}")
                 
         except Exception as e:
             logger.error(f"Error in _unwatch_data_stream for {key}: {e}")
@@ -123,10 +120,6 @@ class Exchange(EX):
         
         for key, df in self.cache.items():
            
-            pair = key.pair
-            timeframe = key.timeframe
-            marketType = key.marketType
-            datatype = key.datatype
             
             if df.state == State.RUNNING or df.state == State.PAUSED:
                 # 计算时间窗口
@@ -134,13 +127,13 @@ class Exchange(EX):
                     # 根据数据类型获取最新数据
                     new_data = None
                     
-                    if datatype == "trades":
+                    if key.datatype == "trades":
                         new_data = await self.exchange.watch_trades(
-                            symbol=pair, 
+                            symbol=key.pair, 
                             # since=df.last_datetime - 1
                         )
-                    elif datatype == "ohlcv":
-                        new_data = await self.exchange.watch_ohlcv(symbol=pair, timeframe=timeframe)
+                    elif key.datatype == "ohlcv":
+                        new_data = await self.exchange.watch_ohlcv(symbol=key.pair, timeframe=key.timeframe)
             
                     
                     # 更新缓存
@@ -243,7 +236,7 @@ class Exchange(EX):
                     logger.warning(f"Unsupported data type for fetching old data: {datatype}")
         for k in removelist:
             del self.since[k]
-    async def trades(self, symbol: str, since:float|int,marketType: MarketType = "future", wait_full_data = True,limit=None, params=None):
+    async def trades(self, symbol: str, since:float|int,marketType: MarketType = "future", wait_full_data = True,limit=None, params=None)->T:
             key = DataKey(symbol,timeframe="", marketType=marketType,datatype= "trades")
        
             
@@ -252,6 +245,7 @@ class Exchange(EX):
                 return data[(since,None)]
             
             self.set_since(key=key,since=since,internal =timedelta(minutes=1))
+            return self.cache.empty()
             
             
     async def ohlcv(self, symbol: str,timeframe: str, since:float|int,marketType: MarketType = "future",wait_full_data = True,limit=None,  params=None):
@@ -270,8 +264,11 @@ class Exchange(EX):
                     # 返回缓存数据
                     return cached_data[(since,-1)]
             self.set_since(key=key,since=since,internal=timeframe)
+            return self.cache.empty()
             
-    async def tickers(self, symbol:str, since:float|int,marketType: MarketType = "future",wait_full_data = True,limit=None,  params=None):...
+            
+            
+    async def tickers(self, symbol:str, since:float|int,marketType: MarketType = "future",wait_full_data = True,limit=None,  params=None)->T:...
     # async def orderbook(self, symbol: str,since:int):
     #     # 处理单个symbol的情况
     #         symbol = symbol
