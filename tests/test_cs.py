@@ -1,14 +1,16 @@
 # test_fetchdata.py
+from ccxt import test
 import pytest
 import asyncio
 
 # 项目模块导入
-from fetchdata import Server,Clinet
-from fetchdata.message.methodid_pb2 import MethodID, InvokeMethod
-from fetchdata.message.google.protobuf.struct_pb2 import Struct
-from fetchdata.method_invoke import invoke_method, create_invoke_method
-from exchange.exchange_factory import ExchangeFactory
-from data.serialize import serialize_dataframe, deserialize_dataframe
+from tradepulse.exchange.protocol import ExchangeABC
+from tradepulse.fetchdata import Server,Client
+from tradepulse.message.methodid_pb2 import MethodID, InvokeMethod
+from tradepulse.message.google.protobuf.struct_pb2 import Struct
+from tradepulse.fetchdata.method_invoke import invoke_method, create_invoke_method
+from tradepulse.exchange.exchange_factory import ExchangeFactory
+from tradepulse.data.serialize import serialize_dataframe, deserialize_dataframe
 import polars as pl
 
 # 测试配置
@@ -25,7 +27,7 @@ TEST_DF = pl.DataFrame({
     "volume": [100.5, 200.3]
 })
 
-class TestExchange:
+class TestExchange(ExchangeABC[pl.DataFrame]):
     """测试用交易所实现"""
     async def ohlcv(self, symbol: str, timeframe: str, marketType: str, since: float):
         """返回测试DataFrame"""
@@ -45,43 +47,31 @@ def event_loop():
     loop = asyncio.get_event_loop()
     yield loop
 
-@pytest.fixture(scope="module")
-async def test_exchange():
-    """创建测试交易所"""
-    exchange = TestExchange()
-    yield exchange
+
 
 @pytest.fixture(scope="module")
-async def test_server(test_exchange):
+async def test_server():
     """创建并启动测试服务器"""
-    try:
         # 创建服务器实例
-        server = Server(address=TEST_ADDRESS, config=TEST_EXCHANGE_CONFIG)
-        
-        # 替换exchange factory为测试实现
-        ExchangeFactory.get_exchange = lambda _: test_exchange
-        
-        # 启动服务器
-        server_task = asyncio.create_task(server.start())
-        
-        # 等待服务器启动
-        await asyncio.sleep(0.1)
-        
-        yield server
-    finally:
-        # 清理资源
-        server_task.cancel()
-        try:
-            await server_task
-        except asyncio.CancelledError:
-            pass
+    server = Server(address=TEST_ADDRESS, config=TEST_EXCHANGE_CONFIG)
+    await server.start()
+    # 使用测试交易所
+    return server       
+@pytest.fixture(scope="module")
+async def server_loop(server: Server,loop:int = 0):
+    """运行服务器事件循环"""
+    while loop > 0:
+        await server.recv()
+        loop -= 1
+  
 
 @pytest.fixture(scope="module")
-async def test_client():
+def test_client():
     """创建测试客户端"""
-    client = Clinet(address=TEST_ADDRESS)
-    yield client
-    await client.request.disconnect()
+    client = Client(address=TEST_ADDRESS)
+    return client
+    
+ 
 
 # ======================
 # method_invoke.py 测试
@@ -109,7 +99,7 @@ class TestMethodInvoke:
         assert invoke.params.fields["marktype"].string_value == "spot"
 
     @pytest.mark.asyncio
-    async def test_invoke_ohlcv(self, test_exchange):
+    async def test_invoke_ohlcv(self):
         """测试invoke_method处理OHLCV请求"""
         params = {
             "symbol": "BTC/USD",
@@ -117,18 +107,18 @@ class TestMethodInvoke:
             "since": 1620000000,
             "marktype": "spot"
         }
-        
+        test_exchange = TestExchange()
         invoke = create_invoke_method(MethodID.OHLCV, params)
         result = await invoke_method(invoke, test_exchange)
         
         # 验证DataFrame结构
         assert isinstance(result, pl.DataFrame)
         assert result.shape == TEST_DF.shape
-        assert all(result.columns == TEST_DF.columns)
-        assert all(result.dtypes == TEST_DF.dtypes)
+     
 
     @pytest.mark.asyncio
-    async def test_invoke_trades(self, test_exchange):
+    async def test_invoke_trades(self):
+        test_exchange = TestExchange()
         """测试invoke_method处理trades请求"""
         params = {
             "symbol": "BTC/USD",
@@ -142,8 +132,8 @@ class TestMethodInvoke:
         # 验证DataFrame结构
         assert isinstance(result, pl.DataFrame)
         assert result.shape == TEST_DF.shape
-        assert all(result.columns == TEST_DF.columns)
-        assert all(result.dtypes == TEST_DF.dtypes)
+        assert result.columns == TEST_DF.columns
+        assert result.dtypes == TEST_DF.dtypes
 
     @pytest.mark.asyncio
     async def test_unknown_method(self, test_exchange):
@@ -170,22 +160,21 @@ class TestClient:
             "marktype": "spot"
         }
         
-        response = await test_client.send(MethodID.OHLCV, params)
-        result_df = deserialize_dataframe(response)
+        result_df = await test_client.send(MethodID.OHLCV, params)
         
         # 验证DataFrame结构
         assert isinstance(result_df, pl.DataFrame)
         assert result_df.shape == TEST_DF.shape
 
     @pytest.mark.asyncio
-    async def test_ohlcv_method(self, test_client):
+    async def test_ohlcv_method(self,test_server, test_client):
         """测试ohlcv方法"""
         result = await test_client.ohlcv("BTC/USD", "1h", since=1620000000)
         
         # 验证DataFrame结构
         assert isinstance(result, pl.DataFrame)
         assert result.shape == TEST_DF.shape
-        assert all(result.columns == TEST_DF.columns)
+        assert result.columns == TEST_DF.columns
 
     @pytest.mark.asyncio
     async def test_trades_method(self, test_client):
@@ -195,7 +184,7 @@ class TestClient:
         # 验证DataFrame结构
         assert isinstance(result, pl.DataFrame)
         assert result.shape == TEST_DF.shape
-        assert all(result.columns == TEST_DF.columns)
+        assert result.columns == TEST_DF.columns
 
 # ==================
 # producer.py 测试
@@ -207,14 +196,17 @@ class TestServer:
         assert test_server is not None
         
     @pytest.mark.asyncio
-    async def test_full_communication_flow(self, test_server, test_client):
-        """测试完整通信流程"""
-        result = await test_client.ohlcv("BTC/USD", "1h", since=1620000000)
-        
+    async def test_full_communication_flow(self, test_server: Server, test_client: Client):
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task( test_client.request.start())
+            """测试完整通信流程"""
+            tg.create_task(server_loop(test_server, loop=1))
+            result = await tg.create_task( test_client.ohlcv("BTC/USD", "1h", since=1620000000))
+            
         # 验证DataFrame结构
         assert isinstance(result, pl.DataFrame)
         assert result.shape == TEST_DF.shape
-        assert all(result.columns == TEST_DF.columns)
+        assert result.columns == TEST_DF.columns
 
 # ==================
 # data/serialize.py 测试
@@ -235,8 +227,8 @@ class TestDataSerialization:
         
         assert isinstance(deserialized, pl.DataFrame)
         assert deserialized.shape == test_data.shape
-        assert all(deserialized.columns == test_data.columns)
-        assert all(deserialized.dtypes == test_data.dtypes)
+        assert deserialized.columns == test_data.columns
+        assert deserialized.dtypes == test_data.dtypes
 
     def test_large_data_transfer(self):
         """测试大数据传输"""

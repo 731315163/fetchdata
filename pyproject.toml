@@ -8,13 +8,12 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "cachetools>=6.1.0",
+    "cachetools>=6.0",
     "ccxt>=4.4.82",
     "communication",
     "orjson>=3.10.18",
-    "pandas>=2.3.0",
     "polars[pyarrow]>=1.30.0",
-    "protobuf>=6.31.1",
+    "protobuf>=6.31",
     "pyarrow>=20.0.0",
 ]
 

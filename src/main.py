@@ -1,6 +1,6 @@
 from asyncio import run
 from asyncio.log import logger
-from fetchdata import Server
+from tradepulse.fetchdata import Server
 async def main(address:str, config):
     server = Server(address,config)    
     await server.start()
@@ -17,4 +17,4 @@ async def main(address:str, config):
 if __name__ == '__main__':
     from argparse import ArgumentParser
     
-    run(main("",{}))
+    run(main("fetchdata",{}))

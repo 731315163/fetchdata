@@ -11,9 +11,9 @@ from time import time
 import pytest
 from ccxt.base.types import Trade
 import pyarrow as pa
-from exchange import CCXTExchangeFactory, ExchangeFactory
-from exchange.exchange import DataKey
-from exchange.protocol import CCXTExchangeProtocol
+from tradepulse.exchange import CCXTExchangeFactory, ExchangeFactory
+from tradepulse.exchange.exchange import DataKey
+from tradepulse.exchange.protocol import CCXTExchangeProtocol
 
 
 def get_exchange(exchange_name: str="binance", config={}) -> CCXTExchangeProtocol:

@@ -1,7 +1,7 @@
 import pytest
 import polars as pl
 import pyarrow as pa
-from data.serialize import serialize_dataframe, deserialize_dataframe
+from tradepulse.data.serialize import serialize_dataframe, deserialize_dataframe
 from datetime import datetime
 
 def test_serialize_non_empty():
@@ -36,7 +36,7 @@ def test_serialize_invalid_type():
 
 def test_deserialize_invalid_format():
     """测试无效格式反序列化"""
-    with pytest.raises(ValueError):
+    with pytest.raises(pl.exceptions.ComputeError):
         deserialize_dataframe(b"invalid_header_data")
 
 def test_roundtrip_with_metadata():

@@ -3,9 +3,9 @@ import polars as pl
 import pyarrow as pa
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
-from data import DataRecoder, DataKey
-from typenums import MarketType, DataType
-from data.dataframe_recoder import DataFrameRecoder  # 替换为实际模块名
+from tradepulse.data import DataRecoder, DataKey
+from tradepulse.typenums import MarketType, DataType
+from tradepulse.data.dataframe_recoder import DataFrameRecoder  # 替换为实际模块名
 
 # Fixtures
 @pytest.fixture

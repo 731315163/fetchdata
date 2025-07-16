@@ -1,4 +1,4 @@
-from src.exchange import CCXTExchangeFactory
+from tradepulse.exchange import CCXTExchangeFactory
 
 
 def test_get_exchange():
