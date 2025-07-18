@@ -14,12 +14,12 @@ from  tradepulse.util import (clamp, dt_now, timeframe_to_seconds,
 from .ccxtexchange_factory import CCXTExchangeFactory
 from .protocol import CCXTExchangeProtocol
 from .protocol import ExchangeABC 
-from polars import DataFrame
+
 logger = logging.getLogger(__name__)
 
 
 TimeMarkerMinGap= NamedTuple("TimeMarkerMinGap", [("time_marker", TimeStamp),("internal", timedelta) ])
-T= TypeVar("T", bound=DataFrame|list)
+
 class Exchange[T](ExchangeABC[T]):
 
     def __init__(self, exchange_name:str="", config:dict={}) :
@@ -54,11 +54,11 @@ class Exchange[T](ExchangeABC[T]):
   
    
 
-    async def un_watch_trades(self,pair:str,until:float|int,marketType: MarketType = "future" ) -> None:
+    async def un_watch_trades(self,pair:str,until:float|int=0,marketType: MarketType = "future" ) -> None:
          key = DataKey(pair=pair,timeframe="",marketType=marketType,datatype="trades")
          self.set_until(key=key,until=until,internal=timedelta(minutes=1))
 
-    async def un_watch_ohlcv(self,pair:str,timeframe:TimeFrame,until:float|int,marketType: MarketType = "future") -> None:
+    async def un_watch_ohlcv(self,pair:str,timeframe:TimeFrame,until:float|int=0,marketType: MarketType = "future") -> None:
         key = DataKey(pair=pair,timeframe=timeframe,marketType=marketType,datatype="ohlcv")
         self.set_until(key=key,until=until,internal=timeframe)
     async def update(self) -> None:
@@ -235,55 +235,7 @@ class Exchange[T](ExchangeABC[T]):
                     logger.warning(f"Unsupported data type for fetching old data: {datatype}")
         for k in removelist:
             del self.since[k]
-    async def trades(self, symbol: str, since:float|int,marketType: MarketType = "future", wait_full_data = True,limit=None, params=None)->T:
-            key = DataKey(symbol,timeframe="", marketType=marketType,datatype= "trades")
-       
-            
-            data = self.cache.get_recoder(key=key)
-            if data and data.first_datetime <= since:
-                return data[(since,None)]
-            
-            self.set_since(key=key,since=since,internal =timedelta(minutes=1))
-            return self.cache.empty()
-            
-            
-    async def ohlcv(self, symbol: str,timeframe: str, since:float|int,marketType: MarketType = "future",wait_full_data = True,limit=None,  params=None):
-            key = DataKey(
-                pair=symbol,
-                timeframe=timeframe,
-                marketType=marketType,
-                datatype="ohlcv"
-            )
-           
-       
-            # 先尝试从缓存获取数据
-            if key in self.cache:
-                cached_data = self.cache.get_recoder(key=key)
-                if cached_data and cached_data.first_datetime < since:
-                    # 返回缓存数据
-                    return cached_data[(since,-1)]
-            self.set_since(key=key,since=since,internal=timeframe)
-            return self.cache.empty()
-            
-            
-            
-    async def tickers(self, symbol:str, since:float|int,marketType: MarketType = "future",wait_full_data = True,limit=None,  params=None)->T:...
-    # async def orderbook(self, symbol: str,since:int):
-    #     # 处理单个symbol的情况
-    #         symbol = symbol
-    #         key = DataKey(
-    #             pair=symbol,
-    #             timeframe="", 
-    #             marketType=None,
-    #             datatype="orderbook"
-    #         )
-            
-    #         # 先尝试从缓存获取数据
-    #         if key in self.cache:
-    #             cached_data = self.cache.get_recoder(key=key)
-    #             if cached_data and await cached_data.length() > 0:
-    #                 # 返回缓存数据
-    #                 return await cached_data.to_list()
+  
                     
            
                 

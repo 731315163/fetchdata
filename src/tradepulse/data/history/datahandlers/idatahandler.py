@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import polars as pl
 from polars import DataFrame
-from tradepulse. typenums import DEFAULT_TRADES_COLUMNS, TRADES_SCHEME,CANDLES_SCHEME,DEFAULT_DATAFRAME_COLUMNS,ListPairsWithTimeframes
+from tradepulse.typenums import DEFAULT_TRADES_COLUMNS, TRADES_SCHEME,CANDLES_SCHEME,DEFAULT_DATAFRAME_COLUMNS,ListPairsWithTimeframes
 from tradepulse.data.converter import (
     clean_ohlcv_dataframe,
     trades_convert_types,

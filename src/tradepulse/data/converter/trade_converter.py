@@ -8,14 +8,13 @@ from typing import Any, Dict, List
 
 import polars as pl
 
-logger = logging.getLogger(__name__)
-from tradepulse. typenums.constants import (DEFAULT_TRADES_COLUMNS, Config,
+from tradepulse.typenums.constants import (DEFAULT_TRADES_COLUMNS, Config,
                                  TradeList)
 from tradepulse.exceptions import OperationalException
 from tradepulse.data.timerange import TimeRange
 from tradepulse.typenums import TRADES_SCHEME, CandleType, TradingMode
 from tradepulse.util import timeframe_to_resample_freq
-from tradepulse.data.history import get_datahandler
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,7 +33,7 @@ def convert_trades_to_ohlcv(
     """
     Convert stored trades data to ohlcv data
     """
-  
+    from tradepulse.data.history import get_datahandler
 
     data_handler_trades = get_datahandler(datadir, data_format=data_format_trades)
     data_handler_ohlcv = get_datahandler(datadir, data_format=data_format_ohlcv)
@@ -163,7 +162,7 @@ def convert_trades_format(config: Config, convert_from: str, convert_to: str, er
                 "Please refer to the documentation for details about this special mode."
             )
 
-
+    from tradepulse.data.history import get_datahandler
     src = get_datahandler(config["datadir"], convert_from)
     trg = get_datahandler(config["datadir"], convert_to)
 

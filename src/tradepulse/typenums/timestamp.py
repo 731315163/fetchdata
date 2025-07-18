@@ -6,7 +6,7 @@
 
 import math
 from datetime import datetime, timedelta, timezone
-from typing import Any, Literal, Self, Union
+from typing import Any, Literal
 
 
 class TimeStamp(float):
@@ -234,7 +234,7 @@ class TimeStamp(float):
         """反向加法：other + TimeStamp"""
         return self.__add__(other)
     
-    def __sub__(self, other: Union[timedelta, int, float]) -> 'TimeStamp':
+    def __sub__(self, other: timedelta| int| float) -> 'TimeStamp':
         """减法运算：TimeStamp - other"""
         if self.is_empty:
             return self

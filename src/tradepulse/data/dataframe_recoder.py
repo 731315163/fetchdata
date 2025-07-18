@@ -5,25 +5,26 @@ from typing import MutableSequence, Sequence
 import polars as pl
 from polars import DataFrame, LazyFrame
 
-from data.protocol import DataKey, DataRecoder
-from typenums import DataType, MarketType
+from tradepulse. data.protocol import DataKey, DataRecoder
+from tradepulse. typenums import DataType, MarketType
 
 logger = logging.getLogger(__name__)
 
 class DataFrameRecoder(DataRecoder[DataFrame]):
     
-    
+    def __init__(self, pair: str, marketType: MarketType, datatype: DataType, timeframe="", data: DataFrame | None = None, timeout: timedelta = timedelta(minutes=10)):
+        self.data= DataFrame() if data is None else data
+
+        super().__init__(pair=pair, marketType=marketType, datatype=datatype, timeframe=timeframe,timeout_ms=timeout)
+        self.timekey = "timestamp"
 
     @staticmethod
     def Empty() -> DataFrame:
         return DataFrame()
-    def __init__(self, pair: str, marketType: MarketType, datatype: DataType, timeframe="", data: DataFrame | None = None, timeout: timedelta = timedelta(minutes=10)):
-        self.data= DataFrame() if data is None else data
-
-        super().__init__(pair=pair, marketType=marketType, datatype=datatype, timeframe=timeframe)
-        self.timeout = timeout.microseconds
-        self.timekey = "timestamp"
-        
+   
+    @property
+    def rawdata(self) -> DataFrame:
+        return self.data
 
     @property
     def is_empty(self) -> bool:
@@ -107,7 +108,7 @@ class DataFrameRecoder(DataRecoder[DataFrame]):
             return
 
         # 计算截止时间
-        cutoff = datetime.now(timezone.utc).microsecond - self.timeout
+        cutoff = datetime.now(timezone.utc) - self.timeout
         try:
             # 获取时间列表达式
             time_expr = pl.col(self.timekey)
@@ -117,7 +118,7 @@ class DataFrameRecoder(DataRecoder[DataFrame]):
                 # 假设为毫秒级时间戳
                 time_expr = time_expr.cast(pl.Datetime(time_unit='ms', time_zone="UTC"))
             # 过滤数据
-            self.data = self.data.filter(time_expr >= cutoff)
+            self.data = self.data.filter(time_expr >= cutoff.timestamp()*1000)
         except Exception as e:
             # 记录错误但继续运行
             logger.error(f"警告: 修剪过期数据时出错: {e}")

@@ -8,7 +8,7 @@
 
 
 from abc import ABC, abstractmethod
-from typing import ClassVar, Protocol
+from typing import ClassVar, Protocol,overload
 
 from ccxt.base.decimal_to_precision import DECIMAL_PLACES, NO_PADDING
 from ccxt.base.types import (
@@ -75,20 +75,23 @@ class ExchangeABC[T](ABC):
   
     
     @abstractmethod
-    async def un_watch_trades(self,pair:str,until:float|int,marketType: MarketType = "future" ) -> None:...
+    async def un_watch_trades(self,pair:str,until:float|int=0,marketType: MarketType = "future" ) -> None:...
    
     @abstractmethod
-    async def un_watch_ohlcv(self,pair:str,timeframe:TimeFrame,until:float|int,marketType: MarketType = "future") -> None:...
+    async def un_watch_ohlcv(self,pair:str,timeframe:TimeFrame,until:float|int=0,marketType: MarketType = "future") -> None:...
     @abstractmethod   
     async def update(self) -> None:...
+   
     @abstractmethod
-    async def trades(self, symbol: str, since:float|int,marketType: MarketType = "future", wait_full_data = True, limit=None, params=None)->T:...
+    async def ohlcv(self, symbol: str,timeframe: str, since:float|int,marketType: MarketType = "future",limit=None,  params=None)->T:...
+    
+    @abstractmethod
+    async def trades(self, symbol: str, since:float|int,marketType: MarketType = "future",  limit=None, params=None)->T:...
      
     @abstractmethod
-    async def ohlcv(self, symbol: str,timeframe: str, since:float|int,marketType: MarketType = "future",wait_full_data = True,limit=None,  params=None)->T:...
+    async def tickers(self, symbol:str, since:float|int,marketType: MarketType = "future",limit=None,  params=None)->T:...
 
-    @abstractmethod
-    async def tickers(self, symbol:str, since:float|int,marketType: MarketType = "future",wait_full_data = True,limit=None,  params=None)->T:...
+
 # 定义交易所协议，描述交易所类应具备的基本接口
 class CCXTExchangeProtocol(Protocol):
 # -*- coding: utf-8 -*-

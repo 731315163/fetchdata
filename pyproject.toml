@@ -1,5 +1,5 @@
 [project]
-name = "fetchdata"
+name = "tradepulse"
 version = "0.1.0"
 description = "fetch crypto data"
 readme = "README.md"
@@ -42,7 +42,7 @@ dev = [
 
 
 [project.scripts]
-fetchdata = "fetchdata:main"
+fetchdata = "tradepulse:main"
 
 [build-system]
 requires = ["hatchling"]

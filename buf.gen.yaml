@@ -7,12 +7,12 @@ managed:
 
 plugins:
   - remote: buf.build/protocolbuffers/python
-    out: src/fetchdata/message
+    out: src/message
     # 移除导致错误的 paths 选项，改用 managed 模式管理
     include_imports: true
     include_wkt: true
   - remote: buf.build/protocolbuffers/pyi
-    out: src/fetchdata/message
+    out: src/message
     include_imports: true
     include_wkt: true
    
