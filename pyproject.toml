@@ -57,7 +57,7 @@ exclude = [
 ]
 
 [tool.uv.sources]
-communication = { path = "../communication/dist/communication-0.1.0.tar.gz" }
+communication = { git = "https://github.com/731315163/communication.git" }
 
 [tool.pyright]
 
