@@ -5,11 +5,11 @@ from typing import overload
 
 from polars import DataFrame
 
-from tradepulse.typenums import CANDLES_SCHEME, TRADES_SCHEME, MarketType
+from tradepulse.typenums import CANDLES_SCHEME, TRADES_SCHEME, DataType, MarketType
 
 from .dataframe_recoder import DataFrameRecoder
 from .protocol import DataKey, DataRecoder
-from tradepulse.typenums import DataType
+
 
 class DataCache[T](dict[DataKey,DataRecoder[T]]):
     def __init__(self, exchange_id='',exchange_name=''):
@@ -123,16 +123,18 @@ class DataframeCache(DataCache[DataFrame]):
 
 class CacheFactory():
 
-    data_docker:dict[str,DataCache]= {}
+    data_docker:dict[type,type]= {
+        type(DataFrame):DataframeCache
+    }
     default_cache = DataframeCache
     
     @classmethod
-    def set(cls,exchange_id:str,cache:DataCache):
-        cls.data_docker[exchange_id] = cache
+    def set(cls,datatype:type,cache:type):
+        cls.data_docker[datatype] = cache
     @classmethod
-    def get(cls,exchange_id:str) -> DataCache:
-        if exchange_id not in cls.data_docker: 
-            cls.data_docker[exchange_id] = cls.default_cache(exchange_id)
-        return cls.data_docker[exchange_id]
+    def get(cls,datatype:type|None=None) -> DataCache:
+        if datatype in cls.data_docker: 
+            return  cls.data_docker[datatype]()
+        return cls.default_cache()
    
 

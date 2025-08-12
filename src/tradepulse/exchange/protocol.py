@@ -8,7 +8,7 @@
 
 
 from abc import ABC, abstractmethod
-from typing import ClassVar, Protocol,overload
+from typing import ClassVar, Protocol, overload
 
 from ccxt.base.decimal_to_precision import DECIMAL_PLACES, NO_PADDING
 from ccxt.base.types import (
@@ -55,7 +55,8 @@ from ccxt.base.types import (
     TransferEntry,
 )
 
-from tradepulse. typenums import MarketType,TimeFrame
+from tradepulse.data import cache_data
+from tradepulse. typenums import MarketType, TimeFrame
 
 # ecdsa signing
 # eth signing
@@ -75,21 +76,35 @@ class ExchangeABC[T](ABC):
   
     
     @abstractmethod
-    async def un_watch_trades(self,pair:str,until:float|int=0,marketType: MarketType = "future" ) -> None:...
-   
-    @abstractmethod
-    async def un_watch_ohlcv(self,pair:str,timeframe:TimeFrame,until:float|int=0,marketType: MarketType = "future") -> None:...
-    @abstractmethod   
-    async def update(self) -> None:...
-   
-    @abstractmethod
-    async def ohlcv(self, symbol: str,timeframe: str, since:float|int,marketType: MarketType = "future",limit=None,  params=None)->T:...
+    async def un_watch_trades(self,pair:str,until:float|int=0,marketType: MarketType = "future" ) -> None:
+        '''un_watch_trades'''
+        ...
     
     @abstractmethod
-    async def trades(self, symbol: str, since:float|int,marketType: MarketType = "future",  limit=None, params=None)->T:...
+    async def un_watch_ohlcv(self,pair:str,timeframe:TimeFrame,until:float|int=0,marketType: MarketType = "future") -> None:
+        '''un_watch_ohlcv'''
+        ...
+  
+    @abstractmethod   
+    async def update(self) -> None:
+        '''update data per timeframe'''
+        ...
+    
+    @abstractmethod
+    def ohlcv(self, symbol: str,timeframe: str, since:float|int,marketType: MarketType = "future",limit=None,  params=None)->T:...
+    
+    @abstractmethod
+    def trades(self, symbol: str, since:float|int,marketType: MarketType = "future",  limit=None, params=None)->T:...
      
     @abstractmethod
-    async def tickers(self, symbol:str, since:float|int,marketType: MarketType = "future",limit=None,  params=None)->T:...
+    def tickers(self, symbol:str, since:float|int,marketType: MarketType = "future",limit=None,  params=None)->T:...
+    @abstractmethod
+    def funding_rate(self, symbol:str, since:float|int, limit= None, params={})-> T:...
+    @abstractmethod
+    def funding_rate_history(self, symbol:str, since:float|int, limit= None, params={})-> T:...
+    @property
+    @abstractmethod
+    def cache(self)->cache_data.DataCache[T]:...
 
 
 # 定义交易所协议，描述交易所类应具备的基本接口

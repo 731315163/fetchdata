@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 from collections import namedtuple
 from datetime import datetime, timedelta
 
-
 from tradepulse.typenums import DataType, MarketType, State, TimeStamp
 
 DataKey = namedtuple('DataKey', ['pair', 'timeframe', 'marketType', 'datatype'])
@@ -14,12 +13,13 @@ class DataRecoder[T](ABC):
         self.timeframe: str =timeframe
         self.marketType:MarketType = marketType
         self.datatype: DataType =datatype
-        self.first_datetime :TimeStamp=TimeStamp.empty()
-        self.last_datetime :TimeStamp=TimeStamp.empty()
+        # self.first_time :TimeStamp=TimeStamp.empty()
+        # self.last_time :TimeStamp=TimeStamp.empty()
         # self.timekey =''
         self.timeout:timedelta = timeout_ms
         self.state:State = State.RUNNING
        
+
     @property
     def key (self):
             key = DataKey(self.pair,self.timeframe,self.marketType,self.datatype)
@@ -27,6 +27,12 @@ class DataRecoder[T](ABC):
     @property
     @abstractmethod
     def is_empty(self)->bool:...
+    @property
+    @abstractmethod
+    def first_time(self)->TimeStamp:...
+    @property
+    @abstractmethod
+    def last_time(self)->TimeStamp:...
 
     @property
     @abstractmethod

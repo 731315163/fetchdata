@@ -3,10 +3,10 @@ from datetime import datetime, timedelta, timezone
 from typing import MutableSequence, Sequence
 
 import polars as pl
-from polars import DataFrame, LazyFrame
+from polars import DataFrame
 
-from tradepulse. data.protocol import DataKey, DataRecoder
-from tradepulse. typenums import DataType, MarketType
+from tradepulse. data.protocol import DataRecoder
+from tradepulse.typenums import DataType, MarketType, TimeStamp
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,20 @@ class DataFrameRecoder(DataRecoder[DataFrame]):
 
         super().__init__(pair=pair, marketType=marketType, datatype=datatype, timeframe=timeframe,timeout_ms=timeout)
         self.timekey = "timestamp"
-
+    @property
+    def first_time(self)->TimeStamp:
+        if self.data.is_empty( ):return TimeStamp.empty()
+        first_col_name = self.data.columns[0]
+       # 获取第一列的第一个值
+        first_value = self.data.select(pl.col(first_col_name).first()).item()
+        return TimeStamp(int( first_value))
+    @property
+    def last_time(self)->TimeStamp:
+        if self.data.is_empty( ):return TimeStamp.empty()
+        first_col_name = self.data.columns[0]
+        # 获取第一列的最后一个值
+        last_value =self.data.select(pl.col(first_col_name).last()).item()
+        return TimeStamp(int(last_value))
     @staticmethod
     def Empty() -> DataFrame:
         return DataFrame()

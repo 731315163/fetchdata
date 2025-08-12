@@ -1,19 +1,25 @@
 import asyncio
 import logging
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, NamedTuple, TypeVar
 
+from ccxt import pro
 
 from tradepulse. data import CacheFactory, DataKey
+
 # from exceptions import *  
-from tradepulse. typenums import MarketType, State,TimeStamp,TimeFrame
-from  tradepulse.util import (clamp, dt_now, timeframe_to_seconds,
-                  timeframe_to_timedelta, timestamp_to_timestamp)
+from tradepulse. typenums import MarketType, State, TimeFrame, TimeStamp
+from tradepulse.util import (
+    clamp,
+    dt_now,
+    timeframe_to_seconds,
+    timeframe_to_timedelta,
+    timestamp_to_timestamp,
+)
 
 from .ccxtexchange_factory import CCXTExchangeFactory
-from .protocol import CCXTExchangeProtocol
-from .protocol import ExchangeABC 
+from .protocol import CCXTExchangeProtocol, ExchangeABC
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +41,16 @@ class Exchange[T](ExchangeABC[T]):
         # self.until_lock = asyncio.Lock()
         self.until: dict[DataKey,TimeMarkerMinGap] = {}
         # self.cache_lock= asyncio.Lock()
-        self.cache = CacheFactory.get(exchange_id=self.exchange.name)
+        
         self.data_internal_ratio = 10
         self.rateLimit=self.exchange.rateLimit
-    
-        
+        self._cache = CacheFactory.get(type(T))
+
+          
+       
+    @property
+    def cache(self):
+        return self._cache     
     def set_since(self,key:DataKey,since:float|int,internal:timedelta|str) -> None:
         if isinstance(internal,str):
              internal = timeframe_to_timedelta(internal)
@@ -153,7 +164,7 @@ class Exchange[T](ExchangeABC[T]):
         batch == 0 一直运行到获取所有数据为止
         
         """
-        current_first_time = self.cache.get_recoder(key=key).first_datetime
+        current_first_time = self.cache.get_recoder(key=key).first_time
         
         if current_first_time is None or since >= current_first_time:
             return
@@ -210,7 +221,24 @@ class Exchange[T](ExchangeABC[T]):
             key=key, since=since, batch=time_delta,
             fetch_func= fetch_data 
         )
-    async def _update_history_data(self) -> None:
+    
+    async def _fetch_funding_rate_history(self, key: DataKey, since: float|int) -> None:
+        """获取比当前缓存更早的K线数据"""
+        async def fetch_data(lsince:float|int):
+            lsince = int( timestamp_to_timestamp(lsince))
+            return await self.exchange.fetch_funding_rate_history(symbol=key.pair,since=lsince)
+        
+        
+        time_delta = timedelta(hours=1)  *self.data_internal_ratio
+        """获取比当前缓存更早的交易数据"""
+        await self._fetch_history_data(
+            key=key, since=since, batch=time_delta,
+            fetch_func= fetch_data 
+        )
+    def _chekc_update_is_time(self,last_time:datetime,current_time:datetime,internal:timedelta) -> bool:
+        return current_time - last_time > internal
+
+    async def _update_history_data(self,current_time:datetime) -> None:
         """
         分批次获取比当前缓存更早的交易数据
         """
@@ -220,19 +248,28 @@ class Exchange[T](ExchangeABC[T]):
                 since,internal = self.since[key]
 
                 df = self.cache.get_recoder(key=key)
-            
+                first_time =df.first_time
+                last_time =df.last_time
               
-                current_first_time = df.first_datetime
+                current_first_time = df.first_time
                 pair, timeframe, marketType, datatype = key
                 if  since >= current_first_time:
                     removelist.append(key)
                 since = clamp(interval=internal.total_seconds(),dt=since)
-                if datatype == "trades":
-                    tg.create_task(self._fetch_history_trades(key, since=since))
-                elif datatype == "ohlcv":
-                    tg.create_task(self._fetch_history_ohlcv(key, since=since))
-                else:
-                    logger.warning(f"Unsupported data type for fetching old data: {datatype}")
+                if not self._chekc_update_is_time(last_time.to_datetime_utc(),current_time,internal):
+                            continue
+                match datatype:
+                    case "trades":
+                        
+                        tg.create_task(self._fetch_history_trades(key, since=since))
+                    case "ohlcv":
+                        tg.create_task(self._fetch_history_ohlcv(key, since=since))
+                    case "funding_rate":
+
+                        tg.create_task(self._fetch_funding_rate_history(key, since=since))
+                    case _:
+                         logger.warning(f"Unsupported data type for fetching old data: {datatype}")
+                   
         for k in removelist:
             del self.since[k]
   

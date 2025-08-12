@@ -2,15 +2,19 @@ from collections.abc import MutableSequence, Sequence
 from datetime import timedelta
 from typing import TypeVar
 
-from tradepulse.data import DataRecoder
-from .exchange import DataKey, Exchange, MarketType
-from .protocol import ExchangeABC 
 import polars as pl
+
+from tradepulse.data import DataRecoder
+from tradepulse.data.cache_data import DataCache
+
+from .exchange import DataKey, Exchange, MarketType
+from .protocol import ExchangeABC
+
 # 定义交易所类型的联合类型
 T= TypeVar("T", bound=pl.DataFrame|list)
 
 class DataFrameExchange(Exchange[pl.DataFrame]) :
-
+    
     def _get_data(self,lazy_df: pl.LazyFrame,timekey:str, index: int|float|slice|tuple|list|None = None,limit=None) -> pl.DataFrame:
         start = None
         end =None
@@ -33,20 +37,20 @@ class DataFrameExchange(Exchange[pl.DataFrame]) :
             lazy_df = lazy_df.limit(limit)
         df = lazy_df.collect()  # 一次性触发执行
         return df
-    async def trades(self, symbol: str, since:float|int,marketType: MarketType = "future",limit=None, params=None)->pl.DataFrame:
+    def trades(self, symbol: str, since:float|int,marketType: MarketType = "future",limit=None, params=None)->pl.DataFrame:
             key = DataKey(symbol,timeframe="", marketType=marketType,datatype= "trades")
        
             
             datarecoder:DataRecoder[pl.DataFrame]  = self.cache.get_recoder(key=key)
 
-            if datarecoder and datarecoder.first_datetime <= since:
+            if datarecoder and datarecoder.first_time <= since:
                 self._get_data(lazy_df=datarecoder.rawdata.lazy(),timekey="datetime",index=since,limit=limit)
             
             self.set_since(key=key,since=since,internal = timedelta(minutes=1))
             return self.cache.empty()
             
             
-    async def ohlcv(self, symbol: str,timeframe: str, since:float|int,marketType: MarketType = "future",limit=None,  params=None)->pl.DataFrame:
+    def ohlcv(self, symbol: str,timeframe: str, since:float|int,marketType: MarketType = "future",limit=None,  params=None)->pl.DataFrame:
             key = DataKey(
                 pair=symbol,
                 timeframe=timeframe,
@@ -58,15 +62,37 @@ class DataFrameExchange(Exchange[pl.DataFrame]) :
             # 先尝试从缓存获取数据
             if key in self.cache:
                 datarecoder:DataRecoder[pl.DataFrame]  = self.cache.get_recoder(key=key)
-                if datarecoder and datarecoder.first_datetime < since:
+                if datarecoder and datarecoder.first_time < since:
                     # 返回缓存数据
                     self._get_data(lazy_df=datarecoder.rawdata.lazy(),timekey="datetime",index=since,limit=limit)
             self.set_since(key=key,since=since,internal=timeframe)
             return self.cache.empty()
             
+    def funding_rate(self, symbol:str, since:float|int, limit= None, params={})-> pl.DataFrame:...
+      
+    def funding_rate_history(self, symbol:str, since:float|int, limit= None, params={})-> pl.DataFrame:
+        '''
+        #todo
+        '''
+        key = DataKey(
+                pair=symbol,
+                timeframe="",
+                marketType="future",
+                datatype="funding_rate"
+            )
+           
+        datarecoder:DataRecoder[pl.DataFrame]  = self.cache.get_recoder(key=key)
+        # 先尝试从缓存获取数据
+        if key in self.cache:
             
+            if datarecoder and datarecoder.first_time < since:
+                # 返回缓存数据
+                self._get_data(lazy_df=datarecoder.rawdata.lazy(),timekey="datetime",index=since,limit=limit)
+        else:
+            self.set_since(key=key,since=since,internal="")
+        return self.cache.empty() 
             
-    async def tickers(self, symbol:str, since:float|int,marketType: MarketType = "future",limit=None,  params=None)->pl.DataFrame:...
+    def tickers(self, symbol:str, since:float|int,marketType: MarketType = "future",limit=None,  params=None)->pl.DataFrame:...
     # async def orderbook(self, symbol: str,since:int):
     #     # 处理单个symbol的情况
     #         symbol = symbol
